@@ -76,7 +76,7 @@ export const Testimonials = ({ children }: { children?: React.ReactNode }) => {
             return (
               <div
                 key={idx}
-                className={`absolute max-w-lg rounded-[1.7rem] bg-neutral-200 shadow-md transition-all duration-1000 ease-linear ${className}`}
+                className={`absolute max-w-lg rounded-3xl bg-neutral-200 shadow-md transition-all duration-1000 ease-linear ${className}`}
                 onMouseEnter={() => {
                   if (className === "z-10") {
                     isHoveredOnTestimonial.current = true;
@@ -88,7 +88,7 @@ export const Testimonials = ({ children }: { children?: React.ReactNode }) => {
                   }
                 }}
               >
-                <figure className="m-1 flex gap-5 rounded-3xl bg-white p-5 text-gray-900 lg:p-7">
+                <figure className="m-1 flex gap-5 rounded-2xl bg-white p-5 text-gray-900 lg:p-7">
                   <Image
                     className="hidden h-24 w-24 select-none rounded-full lg:block"
                     src={src}

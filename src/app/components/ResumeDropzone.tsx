@@ -159,7 +159,7 @@ export const ResumeDropzone = ({
             <>
               <label
                 className={cx(
-                  "within-outline-theme-purple cursor-pointer rounded-full px-6 pb-2.5 pt-2 font-semibold shadow-sm",
+                  "within-outline-theme-purple cursor-pointer rounded-lg px-6 pb-2.5 pt-2 font-semibold shadow-sm",
                   playgroundView ? "border" : "bg-primary"
                 )}
               >

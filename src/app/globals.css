@@ -12,7 +12,7 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-primary outline-theme-purple inline-block rounded-full px-6 py-2 font-semibold shadow-sm;
+    @apply bg-primary outline-theme-purple inline-block rounded-lg px-6 py-2 font-semibold shadow-sm;
   }
   .text-primary {
     color: var(--primary) !important;
@@ -34,6 +34,7 @@
 
 :root {
   /* Palette matches Reactive Resume (neutral shadcn theme) */
+  --radius: 0.3rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
