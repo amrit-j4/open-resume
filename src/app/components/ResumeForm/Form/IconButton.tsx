@@ -86,7 +86,7 @@ export const BulletListIconButton = ({
       onClick={() => onClick(!showBulletPoints)}
       tooltipText={tooltipText}
       size="small"
-      className={showBulletPoints ? "!bg-sky-100" : ""}
+      className={showBulletPoints ? "!bg-neutral-200" : ""}
     >
       <ListBulletIcon
         className={`h-4 w-4 ${

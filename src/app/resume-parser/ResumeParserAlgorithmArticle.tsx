@@ -58,7 +58,7 @@ export const ResumeParserAlgorithmArticle = ({
         <span key={idx}>
           {item.text}
           {idx !== line.length - 1 && (
-            <span className="select-none font-extrabold text-sky-400">
+            <span className="select-none font-extrabold text-neutral-400">
               &nbsp;&nbsp;{"|"}&nbsp;&nbsp;
             </span>
           )}
@@ -206,7 +206,7 @@ export const ResumeParserAlgorithmArticle = ({
         from the resume PDF added, as shown in the table below. The result is
         much more readable when displayed in lines. (Some lines might have
         multiple text items, which are separated by a blue vertical divider{" "}
-        <span className="select-none font-extrabold text-sky-400">
+        <span className="select-none font-extrabold text-neutral-400">
           &nbsp;{"|"}&nbsp;
         </span>
         )
@@ -434,7 +434,7 @@ const Step3SectionsTable = ({
           <span key={idx}>
             {item.text}
             {idx !== line.length - 1 && (
-              <span className="select-none font-extrabold text-sky-400">
+              <span className="select-none font-extrabold text-neutral-400">
                 &nbsp;&nbsp;{"|"}&nbsp;&nbsp;
               </span>
             )}

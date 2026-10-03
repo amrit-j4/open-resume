@@ -3,6 +3,14 @@ module.exports = {
   content: ["./src/app/**/*.{ts,tsx,mdx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          '"IBM Plex Sans Variable"',
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+      },
       backgroundImage: {
         dot: "url('/assets/dots.svg')",
       },

@@ -1,17 +1,25 @@
+@import "@fontsource-variable/ibm-plex-sans";
 @import url("/fonts/fonts.css");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[color:var(--background)] text-[color:var(--foreground)] antialiased;
+  }
+}
 
 @layer components {
   .btn-primary {
     @apply bg-primary outline-theme-purple inline-block rounded-full px-6 py-2 font-semibold shadow-sm;
   }
   .text-primary {
-    @apply bg-gradient-to-r from-[color:var(--theme-purple)] to-[color:var(--theme-blue)] bg-clip-text text-transparent !important;
+    color: var(--primary) !important;
   }
   .bg-primary {
-    @apply bg-gradient-to-r from-[color:var(--theme-purple)] to-[color:var(--theme-blue)] text-white;
+    background-color: var(--primary);
+    color: var(--primary-foreground);
   }
   .outline-theme-purple {
     @apply hover:opacity-80 hover:outline-[color:var(--theme-purple)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--theme-purple)];
@@ -25,8 +33,18 @@
 }
 
 :root {
-  --theme-purple: #5d52d9;
-  --theme-blue: #4fc5eb;
+  /* Palette matches Reactive Resume (neutral shadcn theme) */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --border: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  /* Legacy names kept so existing outline-theme-* classes keep working */
+  --theme-purple: var(--ring);
+  --theme-blue: var(--ring);
   /* Keep the below variable names in sync with CSS_VARIABLES in globals-css.ts */
   --top-nav-bar-height: 3.5rem;
   --resume-control-bar-height: 3rem;

@@ -76,7 +76,7 @@ export const Testimonials = ({ children }: { children?: React.ReactNode }) => {
             return (
               <div
                 key={idx}
-                className={`bg-primary absolute max-w-lg rounded-[1.7rem] bg-opacity-30 shadow-md transition-all duration-1000 ease-linear ${className}`}
+                className={`absolute max-w-lg rounded-[1.7rem] bg-neutral-200 shadow-md transition-all duration-1000 ease-linear ${className}`}
                 onMouseEnter={() => {
                   if (className === "z-10") {
                     isHoveredOnTestimonial.current = true;
