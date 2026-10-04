@@ -5,6 +5,7 @@ import {
   ResumePDFText,
 } from "components/Resume/ResumePDF/common";
 import { styles, spacing } from "components/Resume/ResumePDF/styles";
+import { useKeepTogether } from "components/Resume/ResumePDF/templateContext";
 import type { ResumeWorkExperience } from "lib/redux/types";
 
 export const ResumePDFWorkExperience = ({
@@ -16,6 +17,7 @@ export const ResumePDFWorkExperience = ({
   workExperiences: ResumeWorkExperience[];
   themeColor: string;
 }) => {
+  const keepTogether = useKeepTogether();
   return (
     <ResumePDFSection themeColor={themeColor} heading={heading}>
       {workExperiences.map(({ company, jobTitle, date, descriptions }, idx) => {
@@ -24,7 +26,11 @@ export const ResumePDFWorkExperience = ({
           idx > 0 && company === workExperiences[idx - 1].company;
 
         return (
-          <View key={idx} style={idx !== 0 ? { marginTop: spacing["2"] } : {}}>
+          <View
+            key={idx}
+            {...keepTogether}
+            style={idx !== 0 ? { marginTop: spacing["2"] } : {}}
+          >
             {!hideCompanyName && (
               <ResumePDFText bold={true}>{company}</ResumePDFText>
             )}

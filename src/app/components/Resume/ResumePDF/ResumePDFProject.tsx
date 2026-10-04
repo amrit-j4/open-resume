@@ -5,6 +5,7 @@ import {
   ResumePDFText,
 } from "components/Resume/ResumePDF/common";
 import { styles, spacing } from "components/Resume/ResumePDF/styles";
+import { useKeepTogether } from "components/Resume/ResumePDF/templateContext";
 import type { ResumeProject } from "lib/redux/types";
 
 export const ResumePDFProject = ({
@@ -16,10 +17,11 @@ export const ResumePDFProject = ({
   projects: ResumeProject[];
   themeColor: string;
 }) => {
+  const keepTogether = useKeepTogether();
   return (
     <ResumePDFSection themeColor={themeColor} heading={heading}>
       {projects.map(({ project, date, descriptions }, idx) => (
-        <View key={idx}>
+        <View key={idx} {...keepTogether}>
           <View
             style={{
               ...styles.flexRowBetween,

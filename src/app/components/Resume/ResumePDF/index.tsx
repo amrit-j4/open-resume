@@ -11,8 +11,16 @@ import type { Settings, ShowForm } from "lib/redux/settingsSlice";
 import type { Resume } from "lib/redux/types";
 import { SuppressResumePDFErrorMessage } from "components/Resume/ResumePDF/common/SuppressResumePDFErrorMessage";
 import { getTemplate } from "components/Resume/ResumePDF/templates";
-import { TemplateContext } from "components/Resume/ResumePDF/templateContext";
+import {
+  TemplateContext,
+  PdfModeContext,
+} from "components/Resume/ResumePDF/templateContext";
 import { ResumePDFBranding } from "components/Resume/ResumePDF/ResumePDFBranding";
+
+// Top margin on every page. On page 1 the full-width color bar / band is pulled back
+// up to the paper edge with an equal negative margin.
+const PAGE_TOP_PADDING = spacing[10];
+const PULL_TO_PAGE_EDGE = `-${spacing[10]}`;
 
 // Page heights in pt, used to anchor the branding to the bottom of the on-screen preview
 const LETTER_HEIGHT_PT = 792;
@@ -112,59 +120,72 @@ export const ResumePDF = ({
   );
 
   return (
-    <TemplateContext.Provider value={template}>
-      <Document title={`${name} Resume`} author={name} producer={"Job4online"}>
-        <Page
-          size={documentSize === "A4" ? "A4" : "LETTER"}
-          style={{
-            ...styles.flexCol,
-            color: DEFAULT_FONT_COLOR,
-            fontFamily,
-            fontSize: fontSize + "pt",
-            // Room for the "Powered by Job4online" mark at the bottom of every page
-            paddingBottom: spacing[8],
-            // Preview only (the PDF paginates itself): make the element exactly one page
-            // tall so the branding sits at the bottom of the visible page. border-box keeps
-            // the bottom padding inside that height; longer content is clipped like the
-            // preview frame already does, and the full resume is in the downloaded PDF.
-            ...(isPDF
-              ? {}
-              : {
-                  position: "relative",
-                  boxSizing: "border-box",
-                  overflow: "hidden",
-                  height: `${
-                    documentSize === "A4" ? A4_HEIGHT_PT : LETTER_HEIGHT_PT
-                  }pt`,
-                }),
-          }}
+    <PdfModeContext.Provider value={isPDF}>
+      <TemplateContext.Provider value={template}>
+        <Document
+          title={`${name} Resume`}
+          author={name}
+          producer={"Job4online"}
         >
-          {topBarHeight && Boolean(settings.themeColor) && (
-            <View
-              style={{
-                width: spacing["full"],
-                height: topBarHeight,
-                backgroundColor: themeColor,
-              }}
-            />
-          )}
-          {isBand && profileSection}
-          <View
+          <Page
+            size={documentSize === "A4" ? "A4" : "LETTER"}
             style={{
               ...styles.flexCol,
-              padding: `${spacing[0]} ${spacing[20]}`,
+              color: DEFAULT_FONT_COLOR,
+              fontFamily,
+              fontSize: fontSize + "pt",
+              // Margins that apply to every page. Bottom leaves room for the "Powered by
+              // Job4online" mark; top stops page 2+ starting at the very edge of the paper.
+              paddingTop: PAGE_TOP_PADDING,
+              paddingBottom: spacing[8],
+              // Preview only (the PDF paginates itself): make the element exactly one page
+              // tall so the branding sits at the bottom of the visible page. border-box keeps
+              // the bottom padding inside that height; longer content is clipped like the
+              // preview frame already does, and the full resume is in the downloaded PDF.
+              ...(isPDF
+                ? {}
+                : {
+                    position: "relative",
+                    boxSizing: "border-box",
+                    overflow: "hidden",
+                    height: `${
+                      documentSize === "A4" ? A4_HEIGHT_PT : LETTER_HEIGHT_PT
+                    }pt`,
+                  }),
             }}
           >
-            {!isBand && profileSection}
-            {showFormsOrder.map((form) => {
-              const Component = formTypeToComponent[form];
-              return <Component key={form} />;
-            })}
-          </View>
-          <ResumePDFBranding isPDF={isPDF} />
-        </Page>
-      </Document>
-      <SuppressResumePDFErrorMessage />
-    </TemplateContext.Provider>
+            {topBarHeight && Boolean(settings.themeColor) && (
+              <View
+                style={{
+                  width: spacing["full"],
+                  height: topBarHeight,
+                  marginTop: PULL_TO_PAGE_EDGE,
+                  backgroundColor: themeColor,
+                }}
+              />
+            )}
+            {isBand && (
+              <View style={{ marginTop: PULL_TO_PAGE_EDGE }}>
+                {profileSection}
+              </View>
+            )}
+            <View
+              style={{
+                ...styles.flexCol,
+                padding: `${spacing[0]} ${spacing[20]}`,
+              }}
+            >
+              {!isBand && profileSection}
+              {showFormsOrder.map((form) => {
+                const Component = formTypeToComponent[form];
+                return <Component key={form} />;
+              })}
+            </View>
+            <ResumePDFBranding isPDF={isPDF} />
+          </Page>
+        </Document>
+        <SuppressResumePDFErrorMessage />
+      </TemplateContext.Provider>
+    </PdfModeContext.Provider>
   );
 };

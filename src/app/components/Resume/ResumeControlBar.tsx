@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSetDefaultScale } from "components/Resume/hooks";
 import { SignUpToDownloadModal } from "components/Resume/SignUpToDownloadModal";
 import { isSignedIn } from "lib/auth-gate";
@@ -7,33 +7,25 @@ import {
   MagnifyingGlassIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
-import { usePDF } from "@react-pdf/renderer";
-import dynamic from "next/dynamic";
 
-const ResumeControlBar = ({
+export const ResumeControlBar = ({
   scale,
   setScale,
   documentSize,
-  document,
+  pdfUrl,
   fileName,
 }: {
   scale: number;
   setScale: (scale: number) => void;
   documentSize: string;
-  document: JSX.Element;
+  /** Object URL of the generated PDF; null while it is being generated */
+  pdfUrl: string | null;
   fileName: string;
 }) => {
   const { scaleOnResize, setScaleOnResize } = useSetDefaultScale({
     setScale,
     documentSize,
   });
-
-  const [instance, update] = usePDF({ document });
-
-  // Hook to update pdf when document changes
-  useEffect(() => {
-    update();
-  }, [update, document]);
 
   const [checking, setChecking] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -42,14 +34,13 @@ const ResumeControlBar = ({
   // Downloads require a Job4online account. The check runs on every click so a
   // user who just signed up in another tab can continue without reloading.
   const handleDownload = async () => {
-    if (!instance.url) return;
+    if (!pdfUrl) return;
     setChecking(true);
     setGateError(null);
     try {
       if (await isSignedIn()) {
-        // `document` is the resume element prop here, so use window.document
-        const a = window.document.createElement("a");
-        a.href = instance.url;
+        const a = document.createElement("a");
+        a.href = pdfUrl;
         a.download = fileName;
         a.click();
         setShowSignUp(false);
@@ -96,7 +87,7 @@ const ResumeControlBar = ({
         type="button"
         className="ml-1 flex items-center gap-1 rounded-md border border-gray-300 px-3 py-0.5 hover:bg-gray-100 disabled:opacity-50 lg:ml-8"
         onClick={handleDownload}
-        disabled={checking || !instance.url}
+        disabled={checking || !pdfUrl}
       >
         <ArrowDownTrayIcon className="h-4 w-4" />
         <span className="whitespace-nowrap">
@@ -114,16 +105,6 @@ const ResumeControlBar = ({
     </div>
   );
 };
-
-/**
- * Load ResumeControlBar client side since it uses usePDF, which is a web specific API
- */
-export const ResumeControlBarCSR = dynamic(
-  () => Promise.resolve(ResumeControlBar),
-  {
-    ssr: false,
-  }
-);
 
 export const ResumeControlBarBorder = () => (
   <div className="absolute bottom-[var(--resume-control-bar-height)] w-full border-t-2 bg-gray-50" />

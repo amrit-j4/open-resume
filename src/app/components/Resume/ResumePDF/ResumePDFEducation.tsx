@@ -5,6 +5,7 @@ import {
   ResumePDFText,
 } from "components/Resume/ResumePDF/common";
 import { styles, spacing } from "components/Resume/ResumePDF/styles";
+import { useKeepTogether } from "components/Resume/ResumePDF/templateContext";
 import type { ResumeEducation } from "lib/redux/types";
 
 export const ResumePDFEducation = ({
@@ -18,6 +19,7 @@ export const ResumePDFEducation = ({
   themeColor: string;
   showBulletPoints: boolean;
 }) => {
+  const keepTogether = useKeepTogether();
   return (
     <ResumePDFSection themeColor={themeColor} heading={heading}>
       {educations.map(
@@ -28,7 +30,7 @@ export const ResumePDFEducation = ({
           const showDescriptions = descriptions.join() !== "";
 
           return (
-            <View key={idx}>
+            <View key={idx} {...keepTogether}>
               {!hideSchoolName && (
                 <ResumePDFText bold={true}>{school}</ResumePDFText>
               )}

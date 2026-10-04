@@ -181,7 +181,8 @@ export const ResumePDFProfile = ({
   }
 
   return (
-    <ResumePDFSection style={{ marginTop: spacing["4"] }}>
+    // Centered headers have no bar above them, so the page's top padding is their only gap
+    <ResumePDFSection style={{ marginTop: isCentered ? "0" : spacing["4"] }}>
       {content}
     </ResumePDFSection>
   );

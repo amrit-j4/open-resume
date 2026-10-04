@@ -3,9 +3,15 @@ import type { Style } from "@react-pdf/types";
 import { styles, spacing } from "components/Resume/ResumePDF/styles";
 import { DEBUG_RESUME_PDF_FLAG } from "lib/constants";
 import { DEFAULT_FONT_COLOR } from "lib/redux/settingsSlice";
-import { useTemplate } from "components/Resume/ResumePDF/templateContext";
+import {
+  useTemplate,
+  useKeepTogether,
+  useKeepWithNext,
+} from "components/Resume/ResumePDF/templateContext";
 
 const RULE_GRAY = "#d4d4d4";
+// Keep a heading together with at least this much of the content that follows it (pt)
+const HEADING_MIN_PRESENCE_AHEAD = 48;
 
 const ResumePDFHeading = ({
   heading,
@@ -15,6 +21,7 @@ const ResumePDFHeading = ({
   themeColor?: string;
 }) => {
   const { heading: variant } = useTemplate();
+  const keepWithNext = useKeepWithNext(HEADING_MIN_PRESENCE_AHEAD);
   const accent = themeColor || DEFAULT_FONT_COLOR;
   const baseText = { fontWeight: "bold", letterSpacing: "0.3pt" } as const;
 
@@ -22,6 +29,7 @@ const ResumePDFHeading = ({
     case "underline":
       return (
         <View
+          {...keepWithNext}
           style={{
             borderBottomWidth: "1.5pt",
             borderBottomStyle: "solid",
@@ -39,7 +47,10 @@ const ResumePDFHeading = ({
       );
     case "pill":
       return (
-        <View style={{ ...styles.flexRow }}>
+        <View
+          {...keepWithNext}
+          style={{ ...styles.flexRow }}
+        >
           <Text
             style={{
               ...baseText,
@@ -56,7 +67,10 @@ const ResumePDFHeading = ({
       );
     case "ruled":
       return (
-        <View style={{ ...styles.flexRow, alignItems: "center" }}>
+        <View
+          {...keepWithNext}
+          style={{ ...styles.flexRow, alignItems: "center" }}
+        >
           <Text
             style={{ ...baseText, letterSpacing: "1pt" }}
             debug={DEBUG_RESUME_PDF_FLAG}
@@ -76,6 +90,7 @@ const ResumePDFHeading = ({
     case "centered-rule":
       return (
         <View
+          {...keepWithNext}
           style={{
             ...styles.flexRow,
             alignItems: "center",
@@ -109,7 +124,10 @@ const ResumePDFHeading = ({
     default:
       // "bar" (classic)
       return (
-        <View style={{ ...styles.flexRow, alignItems: "center" }}>
+        <View
+          {...keepWithNext}
+          style={{ ...styles.flexRow, alignItems: "center" }}
+        >
           {themeColor && (
             <View
               style={{
@@ -185,10 +203,11 @@ export const ResumePDFBulletList = ({
   items: string[];
   showBulletPoints?: boolean;
 }) => {
+  const keepTogether = useKeepTogether();
   return (
     <>
       {items.map((item, idx) => (
-        <View style={{ ...styles.flexRow }} key={idx}>
+        <View style={{ ...styles.flexRow }} key={idx} {...keepTogether}>
           {showBulletPoints && (
             <ResumePDFText
               style={{
