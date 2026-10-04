@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FlexboxSpacer } from "components/FlexboxSpacer";
 import { AutoTypingResume } from "home/AutoTypingResume";
+import { StartResumeButton } from "components/StartResumeButton";
 
 export const Hero = () => {
   return (
@@ -18,7 +19,16 @@ export const Hero = () => {
         <Link href="/resume-import" className="btn-primary mt-6 lg:mt-14">
           Create Resume <span aria-hidden="true">→</span>
         </Link>
-        <p className="mt-3 text-sm text-gray-600 lg:mt-36">
+        <p className="mt-3 text-sm text-gray-600">
+          Not sure where to start?{" "}
+          <StartResumeButton
+            kind="sample"
+            className="underline underline-offset-2"
+          >
+            Try a sample resume
+          </StartResumeButton>
+        </p>
+        <p className="mt-3 text-sm text-gray-600 lg:mt-24">
           Already have a resume? Test its ATS readability with the{" "}
           <Link href="/resume-parser" className="underline underline-offset-2">
             resume parser

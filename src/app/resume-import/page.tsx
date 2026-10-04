@@ -3,6 +3,7 @@ import { getHasUsedAppBefore } from "lib/redux/local-storage";
 import { ResumeDropzone } from "components/ResumeDropzone";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { StartResumeButton } from "components/StartResumeButton";
 
 export default function ImportResume() {
   const [hasUsedAppBefore, setHasUsedAppBefore] = useState(false);
@@ -34,6 +35,7 @@ export default function ImportResume() {
                   heading="Don't have a resume yet?"
                   buttonText="Create from scratch"
                 />
+                <SampleOption />
               </>
             )}
           </>
@@ -55,12 +57,46 @@ export default function ImportResume() {
               onFileUrlChange={onFileUrlChange}
               className="mt-5"
             />
+            {!hasAddedResume && (
+              <>
+                <OrDivider />
+                <p className="font-semibold text-gray-900">
+                  Start over with something new
+                </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  <StartResumeButton kind="blank" className={SECONDARY_BUTTON}>
+                    Start from scratch
+                  </StartResumeButton>
+                  <StartResumeButton kind="sample" className={SECONDARY_BUTTON}>
+                    Try a sample resume
+                  </StartResumeButton>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
     </main>
   );
 }
+
+const SECONDARY_BUTTON =
+  "rounded-lg border border-gray-300 px-6 pb-2 pt-1.5 text-base font-semibold text-gray-800 hover:bg-gray-100";
+
+const SampleOption = () => (
+  <div className="mt-6 border-t border-gray-100 pt-6">
+    <p className="font-semibold text-gray-900">Want to see what it looks like?</p>
+    <p className="mx-auto mt-1 max-w-md text-sm text-gray-600">
+      Open a complete sample resume that uses every section, then edit it with
+      your own details.
+    </p>
+    <div className="mt-4">
+      <StartResumeButton kind="sample" className={SECONDARY_BUTTON}>
+        Try a sample resume
+      </StartResumeButton>
+    </div>
+  </div>
+);
 
 const OrDivider = () => (
   <div className="mx-[-2.5rem] flex items-center pb-6 pt-8" aria-hidden="true">
