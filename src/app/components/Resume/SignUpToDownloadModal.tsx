@@ -1,4 +1,5 @@
 import { SIGN_IN_URL, SIGN_UP_URL, SITE_NAME } from "lib/site-config";
+import { withReturnTo } from "lib/auth-gate";
 
 export const SignUpToDownloadModal = ({
   checking,
@@ -23,21 +24,18 @@ export const SignUpToDownloadModal = ({
       </h2>
       <p className="mt-2 text-sm text-gray-600">
         Your resume is ready. Sign up or sign in to {SITE_NAME} to download it.
-        We open it in a new tab so your resume stays here.
+        Your resume is saved in this browser, and you will come straight back
+        here afterwards.
       </p>
       <div className="mt-5 flex flex-col gap-2">
         <a
-          href={SIGN_UP_URL}
-          target="_blank"
-          rel="noopener"
+          href={withReturnTo(SIGN_UP_URL)}
           className="btn-primary text-center"
         >
           Sign up
         </a>
         <a
-          href={SIGN_IN_URL}
-          target="_blank"
-          rel="noopener"
+          href={withReturnTo(SIGN_IN_URL)}
           className="rounded-lg border border-gray-300 px-6 py-2 text-center font-semibold hover:bg-gray-100"
         >
           I already have an account
@@ -48,7 +46,7 @@ export const SignUpToDownloadModal = ({
           disabled={checking}
           className="rounded-lg px-6 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
         >
-          {checking ? "Checking..." : "I've signed in, download my resume"}
+          {checking ? "Checking..." : "I'm already signed in, download my resume"}
         </button>
       </div>
       {error && (

@@ -13,3 +13,13 @@ export const isSignedIn = async (): Promise<boolean> => {
   const data = (await res.json()) as { authenticated?: boolean };
   return data.authenticated === true;
 };
+
+/**
+ * Builds a seeker sign-up / sign-in link that returns the user to this page
+ * afterwards (via the seeker's /auth/return page, which only accepts this origin).
+ */
+export const withReturnTo = (authUrl: string): string => {
+  const here = `${window.location.origin}${window.location.pathname}`;
+  const callback = `/auth/return?to=${here}`;
+  return `${authUrl}?callbackURL=${encodeURIComponent(callback)}`;
+};
