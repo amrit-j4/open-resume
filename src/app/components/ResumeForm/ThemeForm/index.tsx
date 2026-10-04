@@ -2,6 +2,7 @@ import { BaseForm } from "components/ResumeForm/Form";
 import { InputGroupWrapper } from "components/ResumeForm/Form/InputGroup";
 import { THEME_COLORS } from "components/ResumeForm/ThemeForm/constants";
 import { InlineInput } from "components/ResumeForm/ThemeForm/InlineInput";
+import { TemplateSelections } from "components/ResumeForm/ThemeForm/TemplateSelections";
 import {
   DocumentSizeSelections,
   FontFamilySelectionsCSR,
@@ -19,7 +20,7 @@ import { Cog6ToothIcon } from "@heroicons/react/24/outline";
 
 export const ThemeForm = () => {
   const settings = useAppSelector(selectSettings);
-  const { fontSize, fontFamily, documentSize } = settings;
+  const { fontSize, fontFamily, documentSize, template } = settings;
   const themeColor = settings.themeColor || DEFAULT_THEME_COLOR;
   const dispatch = useAppDispatch();
 
@@ -35,6 +36,14 @@ export const ThemeForm = () => {
           <h1 className="text-lg font-semibold tracking-wide text-gray-900 ">
             Resume Setting
           </h1>
+        </div>
+        <div>
+          <InputGroupWrapper label="Template" />
+          <TemplateSelections
+            selectedTemplate={template}
+            themeColor={themeColor}
+            handleSettingsChange={handleSettingsChange}
+          />
         </div>
         <div>
           <InlineInput

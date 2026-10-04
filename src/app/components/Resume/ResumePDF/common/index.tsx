@@ -3,6 +3,131 @@ import type { Style } from "@react-pdf/types";
 import { styles, spacing } from "components/Resume/ResumePDF/styles";
 import { DEBUG_RESUME_PDF_FLAG } from "lib/constants";
 import { DEFAULT_FONT_COLOR } from "lib/redux/settingsSlice";
+import { useTemplate } from "components/Resume/ResumePDF/templateContext";
+
+const RULE_GRAY = "#d4d4d4";
+
+const ResumePDFHeading = ({
+  heading,
+  themeColor,
+}: {
+  heading: string;
+  themeColor?: string;
+}) => {
+  const { heading: variant } = useTemplate();
+  const accent = themeColor || DEFAULT_FONT_COLOR;
+  const baseText = { fontWeight: "bold", letterSpacing: "0.3pt" } as const;
+
+  switch (variant) {
+    case "underline":
+      return (
+        <View
+          style={{
+            borderBottomWidth: "1.5pt",
+            borderBottomStyle: "solid",
+            borderBottomColor: accent,
+            paddingBottom: spacing["1"],
+          }}
+        >
+          <Text
+            style={{ ...baseText, color: accent }}
+            debug={DEBUG_RESUME_PDF_FLAG}
+          >
+            {heading}
+          </Text>
+        </View>
+      );
+    case "pill":
+      return (
+        <View style={{ ...styles.flexRow }}>
+          <Text
+            style={{
+              ...baseText,
+              color: "#FFFFFF",
+              backgroundColor: accent,
+              borderRadius: "3pt",
+              padding: `${spacing["1"]} ${spacing["2.5"]}`,
+            }}
+            debug={DEBUG_RESUME_PDF_FLAG}
+          >
+            {heading}
+          </Text>
+        </View>
+      );
+    case "ruled":
+      return (
+        <View style={{ ...styles.flexRow, alignItems: "center" }}>
+          <Text
+            style={{ ...baseText, letterSpacing: "1pt" }}
+            debug={DEBUG_RESUME_PDF_FLAG}
+          >
+            {heading}
+          </Text>
+          <View
+            style={{
+              flexGrow: 1,
+              height: "0.75pt",
+              backgroundColor: RULE_GRAY,
+              marginLeft: spacing["3"],
+            }}
+          />
+        </View>
+      );
+    case "centered-rule":
+      return (
+        <View
+          style={{
+            ...styles.flexRow,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <View
+            style={{
+              flexGrow: 1,
+              height: "0.75pt",
+              backgroundColor: accent,
+              marginRight: spacing["3"],
+            }}
+          />
+          <Text
+            style={{ ...baseText, letterSpacing: "1.5pt" }}
+            debug={DEBUG_RESUME_PDF_FLAG}
+          >
+            {heading}
+          </Text>
+          <View
+            style={{
+              flexGrow: 1,
+              height: "0.75pt",
+              backgroundColor: accent,
+              marginLeft: spacing["3"],
+            }}
+          />
+        </View>
+      );
+    default:
+      // "bar" (classic)
+      return (
+        <View style={{ ...styles.flexRow, alignItems: "center" }}>
+          {themeColor && (
+            <View
+              style={{
+                height: "3.75pt",
+                width: "30pt",
+                backgroundColor: themeColor,
+                marginRight: spacing["3.5"],
+              }}
+              debug={DEBUG_RESUME_PDF_FLAG}
+            />
+          )}
+          <Text style={baseText} debug={DEBUG_RESUME_PDF_FLAG}>
+            {heading}
+          </Text>
+        </View>
+      );
+  }
+};
 
 export const ResumePDFSection = ({
   themeColor,
@@ -23,30 +148,7 @@ export const ResumePDFSection = ({
       ...style,
     }}
   >
-    {heading && (
-      <View style={{ ...styles.flexRow, alignItems: "center" }}>
-        {themeColor && (
-          <View
-            style={{
-              height: "3.75pt",
-              width: "30pt",
-              backgroundColor: themeColor,
-              marginRight: spacing["3.5"],
-            }}
-            debug={DEBUG_RESUME_PDF_FLAG}
-          />
-        )}
-        <Text
-          style={{
-            fontWeight: "bold",
-            letterSpacing: "0.3pt", // tracking-wide -> 0.025em * 12 pt = 0.3pt
-          }}
-          debug={DEBUG_RESUME_PDF_FLAG}
-        >
-          {heading}
-        </Text>
-      </View>
-    )}
+    {heading && <ResumePDFHeading heading={heading} themeColor={themeColor} />}
     {children}
   </View>
 );

@@ -4,6 +4,8 @@ The resume builder and resume parser for [Job4online](https://job4online.com.au)
 
 Create a modern, ATS-friendly resume in a few steps, or test an existing resume's ATS readability with the built-in parser. Resume data stays in the user's browser while building; a free Job4online account is required to download the finished resume.
 
+Five ATS-friendly single-column templates (Classic, Modern, Minimal, Bold, Elegant) are available in the Resume Setting panel. Every template carries a small "Powered by Job4online" mark in the bottom-right corner of each page.
+
 ## Attribution and licence
 
 This project is a modified version of [OpenResume](https://github.com/xitanggg/open-resume), created by Xitang Zhao and designed by Zhigang Wen.

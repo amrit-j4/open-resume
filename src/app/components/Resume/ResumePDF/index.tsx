@@ -10,6 +10,13 @@ import { DEFAULT_FONT_COLOR } from "lib/redux/settingsSlice";
 import type { Settings, ShowForm } from "lib/redux/settingsSlice";
 import type { Resume } from "lib/redux/types";
 import { SuppressResumePDFErrorMessage } from "components/Resume/ResumePDF/common/SuppressResumePDFErrorMessage";
+import { getTemplate } from "components/Resume/ResumePDF/templates";
+import { TemplateContext } from "components/Resume/ResumePDF/templateContext";
+import { ResumePDFBranding } from "components/Resume/ResumePDF/ResumePDFBranding";
+
+// Page heights in pt, used to anchor the branding to the bottom of the on-screen preview
+const LETTER_HEIGHT_PT = 792;
+const A4_HEIGHT_PT = 842;
 
 /**
  * Note: ResumePDF is supposed to be rendered inside PDFViewer. However,
@@ -48,6 +55,14 @@ export const ResumePDF = ({
     showBulletPoints,
   } = settings;
   const themeColor = settings.themeColor || DEFAULT_FONT_COLOR;
+  const template = getTemplate(settings.template);
+  const isBand = template.header === "band";
+  const topBarHeight =
+    template.topBar === "thick"
+      ? spacing[5]
+      : template.topBar === "thin"
+      ? spacing[3.5]
+      : null;
 
   const showFormsOrder = formsOrder.filter((form) => formToShow[form]);
 
@@ -92,8 +107,12 @@ export const ResumePDF = ({
     ),
   };
 
+  const profileSection = (
+    <ResumePDFProfile profile={profile} themeColor={themeColor} isPDF={isPDF} />
+  );
+
   return (
-    <>
+    <TemplateContext.Provider value={template}>
       <Document title={`${name} Resume`} author={name} producer={"Job4online"}>
         <Page
           size={documentSize === "A4" ? "A4" : "LETTER"}
@@ -102,36 +121,44 @@ export const ResumePDF = ({
             color: DEFAULT_FONT_COLOR,
             fontFamily,
             fontSize: fontSize + "pt",
+            // Room for the "Powered by Job4online" mark at the bottom of every page
+            paddingBottom: spacing[8],
+            ...(isPDF
+              ? {}
+              : {
+                  position: "relative",
+                  minHeight: `${
+                    documentSize === "A4" ? A4_HEIGHT_PT : LETTER_HEIGHT_PT
+                  }pt`,
+                }),
           }}
         >
-          {Boolean(settings.themeColor) && (
+          {topBarHeight && Boolean(settings.themeColor) && (
             <View
               style={{
                 width: spacing["full"],
-                height: spacing[3.5],
+                height: topBarHeight,
                 backgroundColor: themeColor,
               }}
             />
           )}
+          {isBand && profileSection}
           <View
             style={{
               ...styles.flexCol,
               padding: `${spacing[0]} ${spacing[20]}`,
             }}
           >
-            <ResumePDFProfile
-              profile={profile}
-              themeColor={themeColor}
-              isPDF={isPDF}
-            />
+            {!isBand && profileSection}
             {showFormsOrder.map((form) => {
               const Component = formTypeToComponent[form];
               return <Component key={form} />;
             })}
           </View>
+          <ResumePDFBranding isPDF={isPDF} />
         </Page>
       </Document>
       <SuppressResumePDFErrorMessage />
-    </>
+    </TemplateContext.Provider>
   );
 };
