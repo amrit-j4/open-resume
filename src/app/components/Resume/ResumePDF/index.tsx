@@ -123,11 +123,17 @@ export const ResumePDF = ({
             fontSize: fontSize + "pt",
             // Room for the "Powered by Job4online" mark at the bottom of every page
             paddingBottom: spacing[8],
+            // Preview only (the PDF paginates itself): make the element exactly one page
+            // tall so the branding sits at the bottom of the visible page. border-box keeps
+            // the bottom padding inside that height; longer content is clipped like the
+            // preview frame already does, and the full resume is in the downloaded PDF.
             ...(isPDF
               ? {}
               : {
                   position: "relative",
-                  minHeight: `${
+                  boxSizing: "border-box",
+                  overflow: "hidden",
+                  height: `${
                     documentSize === "A4" ? A4_HEIGHT_PT : LETTER_HEIGHT_PT
                   }pt`,
                 }),
