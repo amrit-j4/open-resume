@@ -4,33 +4,36 @@ import featureUSSrc from "public/assets/feature-us.svg";
 import featurePrivacySrc from "public/assets/feature-privacy.svg";
 import featureOpenSourceSrc from "public/assets/feature-open-source.svg";
 import { Link } from "components/documentation";
+import {
+  ORIGINAL_PROJECT_NAME,
+  ORIGINAL_PROJECT_URL,
+  SOURCE_CODE_URL,
+} from "lib/site-config";
 
 const FEATURES = [
   {
     src: featureFreeSrc,
-    title: "Free Forever",
-    text: "OpenResume is created with the belief that everyone should have free and easy access to a modern professional resume design",
+    title: "Free to Use",
+    text: "Job4online believes everyone should have free and easy access to a modern, professional resume design. No sign up and no payment needed",
   },
   {
     src: featureUSSrc,
-    title: "U.S. Best Practices",
-    text: "OpenResume has built-in best practices for the U.S. job market and works well with top ATS platforms such as Greenhouse and Lever",
+    title: "ATS-Friendly",
+    text: "Clean, single-column layouts with consistent formatting that applicant tracking systems can read, so your details are parsed correctly",
   },
   {
     src: featurePrivacySrc,
     title: "Privacy Focus",
-    text: "OpenResume stores data locally in your browser so only you have access to your data and with complete control",
+    text: "Your resume data is stored locally in your browser, so only you have access to it and you stay in complete control",
   },
   {
     src: featureOpenSourceSrc,
     title: "Open-Source",
     text: (
       <>
-        OpenResume is an open-source project, and its source code can be viewed
-        by anyone on its{" "}
-        <Link href="https://github.com/xitanggg/open-resume">
-          GitHub repository
-        </Link>
+        This resume builder is open-source software. You can view its{" "}
+        <Link href={SOURCE_CODE_URL}>source code</Link>. It is based on{" "}
+        <Link href={ORIGINAL_PROJECT_URL}>{ORIGINAL_PROJECT_NAME}</Link>
       </>
     ),
   },

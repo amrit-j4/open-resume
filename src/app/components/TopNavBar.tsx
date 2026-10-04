@@ -2,8 +2,9 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import logoSrc from "public/logo.svg";
+import logoSrc from "public/logo.png";
 import { cx } from "lib/cx";
+import { JOB_BOARD_URL, SITE_NAME } from "lib/site-config";
 
 export const TopNavBar = () => {
   const pathName = usePathname();
@@ -19,11 +20,11 @@ export const TopNavBar = () => {
     >
       <div className="flex h-10 w-full items-center justify-between">
         <Link href="/">
-          <span className="sr-only">OpenResume</span>
+          <span className="sr-only">{SITE_NAME}</span>
           <Image
             src={logoSrc}
-            alt="OpenResume Logo"
-            className="h-8 w-full"
+            alt={`${SITE_NAME} Logo`}
+            className="h-10 w-auto"
             priority
           />
         </Link>
@@ -43,15 +44,12 @@ export const TopNavBar = () => {
               {text}
             </Link>
           ))}
-          <div className="ml-1 mt-1">
-            <iframe
-              src="https://ghbtns.com/github-btn.html?user=xitanggg&repo=open-resume&type=star&count=true"
-              width="100"
-              height="20"
-              className="overflow-hidden border-none"
-              title="GitHub"
-            />
-          </div>
+          <a
+            href={JOB_BOARD_URL}
+            className="bg-primary ml-1 rounded-lg px-3 py-2 hover:opacity-80 lg:px-4"
+          >
+            Job Board
+          </a>
         </nav>
       </div>
     </header>
