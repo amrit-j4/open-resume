@@ -2,7 +2,7 @@
 
 The resume builder and resume parser for [Job4online](https://job4online.com.au).
 
-Create a modern, ATS-friendly resume in a few steps, or test an existing resume's ATS readability with the built-in parser. No sign up is required, and resume data stays in the user's browser.
+Create a modern, ATS-friendly resume in a few steps, or test an existing resume's ATS readability with the built-in parser. Resume data stays in the user's browser while building; a free Job4online account is required to download the finished resume.
 
 ## Attribution and licence
 

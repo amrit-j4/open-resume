@@ -14,7 +14,7 @@ const FEATURES = [
   {
     src: featureFreeSrc,
     title: "Free to Use",
-    text: "Job4online believes everyone should have free and easy access to a modern, professional resume design. No sign up and no payment needed",
+    text: "Job4online believes everyone should have free and easy access to a modern, professional resume design. Build your resume for free, then sign up for a free Job4online account to download it",
   },
   {
     src: featureUSSrc,

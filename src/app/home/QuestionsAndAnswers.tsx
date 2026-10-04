@@ -50,11 +50,11 @@ const QAS = [
         <p>
           <span className="font-semibold">2. It is privacy focused.</span>
           <br />
-          While other resume builders may require email sign up and store user
-          data in their databases, this builder keeps your resume data on your
-          own device. It doesn’t require sign up to use the app, and all
-          inputted data is stored in your browser, where only you have access
-          to it.
+          While other resume builders store everything you type in their
+          databases, this builder keeps your resume data on your own device
+          while you work. All inputted data is stored in your browser, where
+          only you have access to it. A free Job4online account is only needed
+          to download the finished resume.
         </p>
       </>
     ),
