@@ -16,5 +16,6 @@ export const ORIGINAL_PROJECT_URL = "https://github.com/xitanggg/open-resume";
 export const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "https://api.job4online.com.au"
 ).replace(/\/$/, "");
-export const SIGN_UP_URL = `${JOB_BOARD_URL}/auth/sign-up`;
-export const SIGN_IN_URL = `${JOB_BOARD_URL}/auth/sign-in`;
+export const SEEKER_APP_URL = "https://seeker.job4online.com.au";
+export const SIGN_UP_URL = `${SEEKER_APP_URL}/auth/sign-up`;
+export const SIGN_IN_URL = `${SEEKER_APP_URL}/auth/sign-in`;
