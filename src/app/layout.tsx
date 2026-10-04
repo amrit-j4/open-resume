@@ -1,6 +1,5 @@
 import "globals.css";
 import { TopNavBar } from "components/TopNavBar";
-import { Footer } from "components/Footer";
 
 export const metadata = {
   title: "Job4online Resume Builder - Free Resume Builder and Parser",
@@ -18,7 +17,6 @@ export default function RootLayout({
       <body>
         <TopNavBar />
         {children}
-        <Footer />
       </body>
     </html>
   );
