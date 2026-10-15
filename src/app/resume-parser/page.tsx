@@ -66,12 +66,15 @@ export default function ResumeParser() {
           <FlexboxSpacer maxWidth={45} className="hidden md:block" />
           <section className="max-w-[600px] grow">
             <Heading className="text-primary !mt-4">
-              Resume Parser Playground
+              Resume Checker
             </Heading>
             <Paragraph smallMarginTop={true}>
-              This playground showcases the Job4online resume parser and its
-              ability to parse information from a resume PDF. Click around the
-              PDF examples below to observe different parsing results.
+              See how an employer&apos;s recruiting software (an ATS) reads
+              your resume. Many companies scan resumes automatically before a
+              person sees them, so if your name, jobs or skills come out wrong
+              or missing here, your resume layout may be getting misread. Pick
+              an example PDF below, or upload your own, to see what gets
+              picked up.
             </Paragraph>
             <div className="mt-3 flex gap-3">
               {RESUME_EXAMPLES.map((example, idx) => (

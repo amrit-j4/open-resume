@@ -31,7 +31,7 @@ export const Hero = () => {
         <p className="mt-3 text-sm text-gray-600 lg:mt-24">
           Already have a resume? Test its ATS readability with the{" "}
           <Link href="/resume-parser" className="underline underline-offset-2">
-            resume parser
+            resume checker
           </Link>
         </p>
       </div>
