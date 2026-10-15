@@ -4,10 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import logoSrc from "public/logo.png";
 import { cx } from "lib/cx";
-import { JOB_BOARD_URL, SITE_NAME } from "lib/site-config";
+import { DASHBOARD_URL, JOB_BOARD_URL, SITE_NAME } from "lib/site-config";
+import { getInitials, useSessionUser } from "lib/use-session-user";
 
 export const TopNavBar = () => {
   const pathName = usePathname();
+  const user = useSessionUser();
   const isHomePage = pathName === "/";
 
   return (
@@ -44,12 +46,30 @@ export const TopNavBar = () => {
               {text}
             </Link>
           ))}
+          {user && (
+            <a
+              href={DASHBOARD_URL}
+              className="rounded-md px-1.5 py-2 text-gray-500 hover:bg-gray-100 focus-visible:bg-gray-100 lg:px-4"
+            >
+              Dashboard
+            </a>
+          )}
           <a
             href={JOB_BOARD_URL}
             className="bg-primary ml-1 rounded-lg px-3 py-2 hover:opacity-80 lg:px-4"
           >
             Job Board
           </a>
+          {user && (
+            <a
+              href={DASHBOARD_URL}
+              title={`${user.name}${user.email ? ` (${user.email})` : ""}`}
+              aria-label={`Signed in as ${user.name}. Go to dashboard`}
+              className="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+            >
+              {getInitials(user.name)}
+            </a>
+          )}
         </nav>
       </div>
     </header>

@@ -1,6 +1,9 @@
 export const SITE_NAME = "Job4online";
 export const SITE_RESUME_NAME = "Job4online Resume Builder";
-export const JOB_BOARD_URL = "https://job4online.com.au";
+export const JOB_BOARD_URL = (
+  process.env.NEXT_PUBLIC_JOB_BOARD_URL ?? "https://job4online.com.au"
+).replace(/\/$/, "");
+export const DASHBOARD_URL = `${JOB_BOARD_URL}/dashboard`;
 
 // AGPL-3.0 section 13: users interacting with this app over a network must be
 // offered the source of the modified version. Point this at the public repo
