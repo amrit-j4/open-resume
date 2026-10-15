@@ -1,17 +1,20 @@
 import { API_URL } from "lib/site-config";
 
 /**
- * Asks the Job4online API whether the visitor has a signed-in session.
+ * Asks the Job4online API whether the visitor has a signed-in session. The job board's refresh cookie is shared with this app (same
+ * site in production, same host across ports locally), so a seeker signed in there is signed in here: `POST /auth/refresh` accepts the
+ * cookie and answers 200, or 401/403 when nobody (or a non-seeker) is signed in.
  * Resolves true/false; throws if the API can't be reached.
  */
 export const isSignedIn = async (): Promise<boolean> => {
-  const res = await fetch(`${API_URL}/session/status`, {
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
     credentials: "include",
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`Session check failed (${res.status})`);
-  const data = (await res.json()) as { authenticated?: boolean };
-  return data.authenticated === true;
+  if (res.ok) return true;
+  if (res.status === 401 || res.status === 403) return false;
+  throw new Error(`Session check failed (${res.status})`);
 };
 
 /**
