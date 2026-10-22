@@ -2,10 +2,13 @@
 import { useState } from "react";
 import { useSetDefaultScale } from "components/Resume/hooks";
 import { SignUpToDownloadModal } from "components/Resume/SignUpToDownloadModal";
-import { isSignedIn } from "lib/auth-gate";
+import { getAccessToken } from "lib/auth-gate";
+import { saveResumeToAccount } from "lib/save-resume";
 import {
   MagnifyingGlassIcon,
   ArrowDownTrayIcon,
+  BookmarkIcon,
+  CheckIcon,
 } from "@heroicons/react/24/outline";
 
 export const ResumeControlBar = ({
@@ -28,32 +31,59 @@ export const ResumeControlBar = ({
   });
 
   const [checking, setChecking] = useState(false);
-  const [showSignUp, setShowSignUp] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [gateAction, setGateAction] = useState<"download" | "save" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
 
-  // Downloads require a Job4online account. The check runs on every click so a
-  // user who just signed up in another tab can continue without reloading.
-  const handleDownload = async () => {
-    if (!pdfUrl) return;
+  // Both actions need a Job4online account. The check runs on every click so a visitor who just signed in in another tab can carry on
+  // without reloading. Returns the access token, or null after showing the sign-up prompt.
+  const requireAccount = async (action: "download" | "save") => {
     setChecking(true);
     setGateError(null);
     try {
-      if (await isSignedIn()) {
-        const a = document.createElement("a");
-        a.href = pdfUrl;
-        a.download = fileName;
-        a.click();
-        setShowSignUp(false);
-      } else {
-        setShowSignUp(true);
+      const token = await getAccessToken();
+      if (token) {
+        setGateAction(null);
+        return token;
       }
+      setGateAction(action);
+      return null;
     } catch {
-      setShowSignUp(true);
+      setGateAction(action);
       setGateError(
         "We couldn't verify your sign-in. Check your connection and try again."
       );
+      return null;
     } finally {
       setChecking(false);
+    }
+  };
+
+  // Downloading only saves the PDF to this device. It never uploads anything.
+  const handleDownload = async () => {
+    if (!pdfUrl || !(await requireAccount("download"))) return;
+    const a = document.createElement("a");
+    a.href = pdfUrl;
+    a.download = fileName;
+    a.click();
+  };
+
+  // Saving is a separate, explicit action: it files the PDF under the account's resumes, where it is embedded for job matching.
+  const handleSave = async () => {
+    if (!pdfUrl) return;
+    setSaveError(null);
+    const token = await requireAccount("save");
+    if (!token) return;
+    setSaving(true);
+    try {
+      await saveResumeToAccount(pdfUrl, fileName, token);
+      setSaved(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -83,23 +113,46 @@ export const ResumeControlBar = ({
           <span className="select-none">Autoscale</span>
         </label>
       </div>
-      <button
-        type="button"
-        className="ml-1 flex items-center gap-1 rounded-md border border-gray-300 px-3 py-0.5 hover:bg-gray-100 disabled:opacity-50 lg:ml-8"
-        onClick={handleDownload}
-        disabled={checking || !pdfUrl}
-      >
-        <ArrowDownTrayIcon className="h-4 w-4" />
-        <span className="whitespace-nowrap">
-          {checking ? "Checking..." : "Download Resume"}
-        </span>
-      </button>
-      {showSignUp && (
+      <div className="flex items-center gap-2">
+        {saveError && (
+          <span className="text-sm text-red-600" role="alert">
+            {saveError}
+          </span>
+        )}
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-0.5 hover:bg-gray-100 disabled:opacity-50"
+          onClick={handleSave}
+          disabled={checking || saving || !pdfUrl}
+        >
+          {saved ? (
+            <CheckIcon className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <BookmarkIcon className="h-4 w-4" aria-hidden="true" />
+          )}
+          <span className="whitespace-nowrap" aria-live="polite">
+            {saving ? "Saving..." : saved ? "Saved to My Resumes" : "Save to My Resumes"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-0.5 hover:bg-gray-100 disabled:opacity-50"
+          onClick={handleDownload}
+          disabled={checking || !pdfUrl}
+        >
+          <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
+          <span className="whitespace-nowrap">
+            {checking ? "Checking..." : "Download Resume"}
+          </span>
+        </button>
+      </div>
+      {gateAction && (
         <SignUpToDownloadModal
+          action={gateAction}
           checking={checking}
           error={gateError}
-          onRetry={handleDownload}
-          onClose={() => setShowSignUp(false)}
+          onRetry={gateAction === "save" ? handleSave : handleDownload}
+          onClose={() => setGateAction(null)}
         />
       )}
     </div>
