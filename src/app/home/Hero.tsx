@@ -16,9 +16,17 @@ export const Hero = () => {
         <p className="mt-3 text-lg lg:mt-5 lg:text-xl">
           With the free Job4online resume builder, built to be read by employers and ATS
         </p>
-        <Link href="/resume-import" className="btn-primary mt-6 lg:mt-14">
-          Create Resume <span aria-hidden="true">→</span>
-        </Link>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:mt-14 lg:justify-start">
+          <Link href="/resume-import" className="btn-primary">
+            Create Resume <span aria-hidden="true">→</span>
+          </Link>
+          <Link
+            href="/import-resume"
+            className="outline-theme-purple inline-block rounded-lg border border-gray-300 bg-white px-6 py-2 font-semibold text-gray-900 shadow-sm"
+          >
+            Import Resume
+          </Link>
+        </div>
         <p className="mt-3 text-sm text-gray-600">
           Not sure where to start?{" "}
           <StartResumeButton
@@ -31,7 +39,7 @@ export const Hero = () => {
         <p className="mt-3 text-sm text-gray-600 lg:mt-24">
           Already have a resume? Test its ATS readability with the{" "}
           <Link href="/resume-parser" className="underline underline-offset-2">
-            resume checker
+            ATS checker
           </Link>
         </p>
       </div>

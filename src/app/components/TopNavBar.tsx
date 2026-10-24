@@ -56,7 +56,7 @@ export const TopNavBar = () => {
           {[
             ["/resume-builder", "Resume Builder"],
             ["/import-resume", "Import Resume"],
-            ["/resume-parser", "Resume Checker"],
+            ["/resume-parser", "ATS Checker"],
           ].map(([href, text]) => (
             <Link
               key={text}

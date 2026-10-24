@@ -66,7 +66,7 @@ export default function ResumeParser() {
           <FlexboxSpacer maxWidth={45} className="hidden md:block" />
           <section className="max-w-[600px] grow">
             <Heading className="text-primary !mt-4">
-              Resume Checker
+              ATS Checker
             </Heading>
             <Paragraph smallMarginTop={true}>
               See how an employer&apos;s recruiting software (an ATS) reads

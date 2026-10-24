@@ -187,7 +187,7 @@ export const ResumeDropzone = ({
                 </button>
               )}
               <p className={cx(" text-gray-500", !playgroundView && "mt-6")}>
-                Note: {!playgroundView ? "Import" : "Resume Checker"} works best on
+                Note: {!playgroundView ? "Import" : "ATS Checker"} works best on
                 single column resume
               </p>
             </>
