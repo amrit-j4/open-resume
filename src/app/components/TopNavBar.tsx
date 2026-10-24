@@ -39,8 +39,8 @@ export const TopNavBar = () => {
         isHomePage && "bg-dot"
       )}
     >
-      <div className="flex h-10 w-full items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr]">
-        <Link href="/" className="justify-self-start">
+      <div className="flex h-10 w-full items-center justify-between ">
+        <Link href="/" className="shrink-0">
           <span className="sr-only">{SITE_NAME}</span>
           <Image
             src={logoSrc}
@@ -51,11 +51,10 @@ export const TopNavBar = () => {
         </Link>
         <nav
           aria-label="Site Nav Bar"
-          className="flex items-center justify-center gap-2 text-sm font-medium"
+          className="flex items-center justify-start gap-2 text-sm font-medium lg:ml-8"
         >
           {[
             ["/resume-builder", "Resume Builder"],
-            ["/import-resume", "Import Resume"],
             ["/resume-analysis", "Resume Analysis"],
             ["/resume-parser", "ATS Checker"],
           ].map(([href, text]) => (
@@ -68,7 +67,7 @@ export const TopNavBar = () => {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center justify-end gap-2 text-sm font-medium">
+        <div className="ml-auto flex items-center justify-end gap-2 text-sm font-medium">
           {/* The resume builder fills this slot with its Save and Download actions (see ResumeControlBar). */}
           <div id="nav-actions" className="flex items-center gap-2" />
           {user && (

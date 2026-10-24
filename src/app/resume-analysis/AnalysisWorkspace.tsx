@@ -80,7 +80,7 @@ const Workspace = ({
   const book = useRef<Book>({ states: {}, rewrites: {} });
   const [, rerender] = useReducer((n: number) => n + 1, 0);
 
-  const [tab, setTab] = useState<Tab>("edit");
+  const [tab, setTab] = useState<Tab>("report");
   const [confirming, setConfirming] = useState(false);
   const [applied, setApplied] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -176,8 +176,8 @@ const Workspace = ({
   };
 
   const tabs: { id: Tab; label: string; mobileOnly?: boolean }[] = [
-    { id: "edit", label: "Edit Resume" },
     { id: "report", label: "Report" },
+    { id: "edit", label: "Edit Resume" },
     { id: "preview", label: "Live Preview", mobileOnly: true },
   ];
 

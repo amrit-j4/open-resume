@@ -101,7 +101,7 @@ export const ResumeControlBar = ({
         className="flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus-visible:bg-gray-100 disabled:opacity-50"
         onClick={handleSave}
         disabled={checking || saving || !pdfUrl}
-        aria-label={saved ? "Saved to My Resumes" : "Save to My Resumes"}
+        aria-label={saved ? "Saved to Job4online" : "Save to Job4online"}
       >
         {saved ? (
           <CheckIcon className="h-4 w-4" aria-hidden="true" />
@@ -109,7 +109,7 @@ export const ResumeControlBar = ({
           <BookmarkIcon className="h-4 w-4" aria-hidden="true" />
         )}
         <span className="hidden whitespace-nowrap xl:inline" aria-live="polite">
-          {saving ? "Saving…" : saved ? "Saved to My Resumes" : "Save to My Resumes"}
+          {saving ? "Saving…" : saved ? "Saved to Job4online" : "Save to Job4online"}
         </span>
       </button>
       <button
@@ -117,11 +117,11 @@ export const ResumeControlBar = ({
         className="flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus-visible:bg-gray-100 disabled:opacity-50"
         onClick={handleDownload}
         disabled={checking || !pdfUrl}
-        aria-label="Download Resume"
+        aria-label="Download"
       >
         <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
         <span className="hidden whitespace-nowrap xl:inline">
-          {checking ? "Checking…" : "Download Resume"}
+          {checking ? "Checking…" : "Download"}
         </span>
       </button>
     </>

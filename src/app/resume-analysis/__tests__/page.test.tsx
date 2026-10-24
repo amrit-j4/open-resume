@@ -331,7 +331,8 @@ describe("the workspace", () => {
   const original = { resume: RESUME, settings: { ...initialSettings, themeColor: "#123456" } };
   const [FORECAST, LED] = RESUME.workExperiences[0].descriptions;
 
-  const analyse = async (analysis = result()) => {
+  /** The analysis opens on the report. Most tests work in the editor, so this switches to it unless told not to. */
+  const analyse = async (analysis = result(), { editor = true } = {}) => {
     fetchMock.mockResolvedValue(ok(analysis));
     render(<ResumeAnalysisPage />);
     fireEvent.click(screen.getByRole("radio", { name: /upload a file/i })); // a saved builder resume would otherwise be preselected
@@ -339,6 +340,7 @@ describe("the workspace", () => {
     paste();
     fireEvent.click(analyseButton());
     await screen.findByRole("heading", { name: "Your Resume Analysis" });
+    if (editor) fireEvent.click(screen.getByRole("tab", { name: "Edit Resume" }));
   };
 
   /** The card for the suggestion with this reason. */
@@ -369,7 +371,16 @@ describe("the workspace", () => {
       expect(screen.getByText("For Senior Data Analyst at Northern Lights Energy")).toBeInTheDocument();
     });
 
-    test("opens on the resume itself, with the builder's own fields filled in", async () => {
+    test("opens on the report, with Edit Resume as the next tab", async () => {
+      await analyse(result(), { editor: false });
+
+      const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent);
+      expect(tabs.slice(0, 2)).toEqual(["Report", "Edit Resume"]);
+      expect(screen.getByRole("tab", { name: "Report" })).toHaveAttribute("aria-selected", "true");
+      expect(document.getElementById("panel-report")).toBeInTheDocument();
+    });
+
+    test("the Edit Resume tab shows the resume itself, with the builder's own fields filled in", async () => {
       await analyse();
 
       expect(screen.getByRole("tab", { name: "Edit Resume" })).toHaveAttribute("aria-selected", "true");
@@ -831,6 +842,7 @@ describe("the workspace", () => {
       fetchMock.mockResolvedValue(ok(result()));
       fireEvent.click(analyseButton());
       await screen.findByRole("heading", { name: "Your Resume Analysis" });
+      fireEvent.click(screen.getByRole("tab", { name: "Edit Resume" }));
 
       expect(count()).toBe("3 to review, 0 accepted, 0 dismissed");
       expect(objective()).toHaveValue(RESUME.profile.summary);
