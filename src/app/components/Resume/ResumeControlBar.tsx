@@ -2,8 +2,12 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSetDefaultScale } from "components/Resume/hooks";
+import { SaveToJob4onlineModal } from "components/Resume/SaveToJob4onlineModal";
 import { SignUpToDownloadModal } from "components/Resume/SignUpToDownloadModal";
 import { getAccessToken } from "lib/auth-gate";
+import { useAppSelector } from "lib/redux/hooks";
+import { selectResume } from "lib/redux/resumeSlice";
+import { selectSettings } from "lib/redux/settingsSlice";
 import { saveResumeToAccount } from "lib/save-resume";
 import {
   MagnifyingGlassIcon,
@@ -11,6 +15,23 @@ import {
   BookmarkIcon,
   CheckIcon,
 } from "@heroicons/react/24/outline";
+
+// What was last saved to the account, so the same resume isn't uploaded twice. Kept here so it holds across a reload.
+const SAVED_KEY = "job4online-resume-saved";
+const readSaved = () => {
+  try {
+    return localStorage.getItem(SAVED_KEY);
+  } catch {
+    return null;
+  }
+};
+const writeSaved = (signature: string) => {
+  try {
+    localStorage.setItem(SAVED_KEY, signature);
+  } catch {
+    // Ignore: it just means a reload may offer to save again.
+  }
+};
 
 export const ResumeControlBar = ({
   scale,
@@ -39,7 +60,14 @@ export const ResumeControlBar = ({
 
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const resume = useAppSelector(selectResume);
+  const settings = useAppSelector(selectSettings);
+  // Anything that changes the PDF changes this, so "saved" means this exact resume is already in the account.
+  const signature = JSON.stringify({ resume, settings });
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  useEffect(() => setSavedSignature(readSaved()), []);
+  const saved = savedSignature === signature;
+  const [confirmingSave, setConfirmingSave] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [gateAction, setGateAction] = useState<"download" | "save" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
@@ -79,14 +107,16 @@ export const ResumeControlBar = ({
 
   // Saving is a separate, explicit action: it files the PDF under the account's resumes, where it is embedded for job matching.
   const handleSave = async () => {
-    if (!pdfUrl) return;
+    setConfirmingSave(false);
+    if (!pdfUrl || saved) return;
     setSaveError(null);
     const token = await requireAccount("save");
     if (!token) return;
     setSaving(true);
     try {
       await saveResumeToAccount(pdfUrl, fileName, token);
-      setSaved(true);
+      writeSaved(signature);
+      setSavedSignature(signature);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Could not save.");
     } finally {
@@ -99,8 +129,8 @@ export const ResumeControlBar = ({
       <button
         type="button"
         className="flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus-visible:bg-gray-100 disabled:opacity-50"
-        onClick={handleSave}
-        disabled={checking || saving || !pdfUrl}
+        onClick={() => setConfirmingSave(true)}
+        disabled={checking || saving || saved || !pdfUrl}
         aria-label={saved ? "Saved to Job4online" : "Save to Job4online"}
       >
         {saved ? (
@@ -160,6 +190,9 @@ export const ResumeControlBar = ({
       )}
       {/* Save and Download render in the top nav bar. */}
       {navSlot && createPortal(actions, navSlot)}
+      {confirmingSave && !saved && (
+        <SaveToJob4onlineModal saving={false} onConfirm={handleSave} onClose={() => setConfirmingSave(false)} />
+      )}
       {gateAction && (
         <SignUpToDownloadModal
           action={gateAction}
