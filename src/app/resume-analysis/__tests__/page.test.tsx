@@ -863,6 +863,20 @@ describe("the workspace", () => {
       expect(count()).toBe("2 to review, 1 accepted, 0 dismissed");
     });
 
+    test("Start a new analysis forgets the saved one and empties the form", async () => {
+      await analyse();
+      fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Start a new analysis" }));
+
+      expect(screen.getByLabelText("Job description")).toHaveValue("");
+      expect(screen.queryByText("resume.pdf")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Start a new analysis" })).not.toBeInTheDocument();
+      cleanup();
+      render(<ResumeAnalysisPage />);
+      expect(screen.queryByRole("heading", { name: "Your Resume Analysis" })).not.toBeInTheDocument();
+    });
+
     test("a reload brings back the analysis, the job and the resume file without another AI call", async () => {
       await analyse();
       accept(SUMMARY_REASON);

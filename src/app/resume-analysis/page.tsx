@@ -9,6 +9,7 @@ import type { Resume } from "lib/redux/types";
 import type { ResumeAnalysisResult } from "lib/resume-analysis/types";
 import {
   analysisSignature,
+  clearSavedAnalysis,
   fileSignature,
   loadSavedAnalysis,
   readFileForSaving,
@@ -167,6 +168,23 @@ export default function ResumeAnalysisPage() {
     workTimer.current = setTimeout(() => savedRef.current && saveAnalysis(savedRef.current), 400);
   };
 
+  /** Forgets the saved analysis and empties the form, ready for a different resume or job. */
+  const startOver = () => {
+    clearTimeout(workTimer.current);
+    clearSavedAnalysis();
+    savedRef.current = undefined;
+    setResult(null);
+    setWork(undefined);
+    setFile(null);
+    setFileProblem(null);
+    setJobText("");
+    setJobUrl("");
+    setErrors({});
+    setServerError(null);
+    setStatus("idle");
+    setSource(builderResume ? "builder" : "upload");
+  };
+
   const analyse = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (analysing) return;
@@ -267,6 +285,15 @@ export default function ResumeAnalysisPage() {
       <p className="mx-auto mt-2 max-w-lg text-pretty text-center text-sm text-gray-600">
         Compare your resume with a job. Get a match score, the keywords you&rsquo;re missing, and a version of your resume reworded for that job.
       </p>
+
+      {result && (
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Your last analysis is saved in this browser, so analysing the same resume and job again is instant.{" "}
+          <button type="button" onClick={startOver} disabled={analysing} className="font-medium text-gray-900 underline hover:no-underline disabled:opacity-50">
+            Start a new analysis
+          </button>
+        </p>
+      )}
 
       <form onSubmit={analyse} noValidate className="mt-10 space-y-8">
         <fieldset disabled={analysing} className="space-y-3">
