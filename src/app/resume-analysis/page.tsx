@@ -173,6 +173,7 @@ export default function ResumeAnalysisPage() {
     clearTimeout(workTimer.current);
     clearSavedAnalysis();
     savedRef.current = undefined;
+    setShowResults(false);
     setResult(null);
     setWork(undefined);
     setFile(null);
@@ -274,7 +275,7 @@ export default function ResumeAnalysisPage() {
   if (showResults && result) {
     return (
       <main>
-        <AnalysisWorkspace result={result} settings={previewSettings} initialWork={work} onWork={rememberWork} onBack={() => setShowResults(false)} headingRef={reportHeadingRef} />
+        <AnalysisWorkspace result={result} settings={previewSettings} initialWork={work} onWork={rememberWork} onBack={() => setShowResults(false)} onStartOver={startOver} headingRef={reportHeadingRef} />
       </main>
     );
   }

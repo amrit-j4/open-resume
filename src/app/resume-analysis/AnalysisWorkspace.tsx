@@ -65,12 +65,14 @@ const Workspace = ({
   initialWork,
   onWork,
   onBack,
+  onStartOver,
   headingRef,
 }: {
   result: ResumeAnalysisResult;
   initialWork?: SavedWork;
   onWork?: (work: SavedWork) => void;
   onBack: () => void;
+  onStartOver?: () => void;
   headingRef: React.RefObject<HTMLHeadingElement>;
 }) => {
   const store = useStore<RootState>();
@@ -193,9 +195,16 @@ const Workspace = ({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <button type="button" onClick={onBack} className={secondary}>
-        &larr; Change Resume or Job
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onBack} className={secondary}>
+          &larr; Change Resume or Job
+        </button>
+        {onStartOver && (
+          <button type="button" onClick={onStartOver} className={secondary}>
+            Start a new analysis
+          </button>
+        )}
+      </div>
 
       <header className="mt-4">
         <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900 outline-none">
@@ -341,6 +350,7 @@ export const AnalysisWorkspace = ({
   initialWork,
   onWork,
   onBack,
+  onStartOver,
   headingRef,
 }: {
   result: ResumeAnalysisResult;
@@ -348,12 +358,13 @@ export const AnalysisWorkspace = ({
   initialWork?: SavedWork;
   onWork?: (work: SavedWork) => void;
   onBack: () => void;
+  onStartOver?: () => void;
   headingRef: React.RefObject<HTMLHeadingElement>;
 }) => {
   const store = useMemo(() => makeStore({ resume: initialWork?.resume ?? result.resume, settings }), [result, settings, initialWork]);
   return (
     <Provider store={store}>
-      <Workspace result={result} initialWork={initialWork} onWork={onWork} onBack={onBack} headingRef={headingRef} />
+      <Workspace result={result} initialWork={initialWork} onWork={onWork} onBack={onBack} onStartOver={onStartOver} headingRef={headingRef} />
     </Provider>
   );
 };

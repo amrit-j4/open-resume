@@ -17,7 +17,7 @@ export const saveResumeToAccount = async (
   body.append("kind", "Document");
   body.append("purpose", "Resume");
 
-  const res = await fetch(`${API_URL}/files`, {
+  const res = await fetch(`${API_URL}/storage/files`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
     body,

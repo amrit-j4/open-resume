@@ -41,7 +41,7 @@ export const SignUpToDownloadModal = ({
             rel="noopener noreferrer"
             className="btn-primary text-center"
           >
-            Sign up (opens in a new tab)
+            Sign up
           </a>
           <a
             href={SIGN_IN_URL}
@@ -49,7 +49,7 @@ export const SignUpToDownloadModal = ({
             rel="noopener noreferrer"
             className="rounded-lg border border-gray-300 px-6 py-2 text-center font-semibold hover:bg-gray-100"
           >
-            I already have an account (opens in a new tab)
+            I already have an account
           </a>
           <button
             type="button"
