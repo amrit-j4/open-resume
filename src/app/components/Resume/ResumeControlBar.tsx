@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSetDefaultScale } from "components/Resume/hooks";
 import { SignUpToDownloadModal } from "components/Resume/SignUpToDownloadModal";
 import { getAccessToken } from "lib/auth-gate";
@@ -29,6 +30,12 @@ export const ResumeControlBar = ({
     setScale,
     documentSize,
   });
+
+  // Save and Download live in the top nav bar, in the slot TopNavBar renders. The state and handlers stay here.
+  const [navSlot, setNavSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setNavSlot(document.getElementById("nav-actions"));
+  }, []);
 
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,8 +94,41 @@ export const ResumeControlBar = ({
     }
   };
 
+  const actions = (
+    <>
+      <button
+        type="button"
+        className="flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus-visible:bg-gray-100 disabled:opacity-50"
+        onClick={handleSave}
+        disabled={checking || saving || !pdfUrl}
+        aria-label={saved ? "Saved to My Resumes" : "Save to My Resumes"}
+      >
+        {saved ? (
+          <CheckIcon className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <BookmarkIcon className="h-4 w-4" aria-hidden="true" />
+        )}
+        <span className="hidden whitespace-nowrap xl:inline" aria-live="polite">
+          {saving ? "Saving…" : saved ? "Saved to My Resumes" : "Save to My Resumes"}
+        </span>
+      </button>
+      <button
+        type="button"
+        className="flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus-visible:bg-gray-100 disabled:opacity-50"
+        onClick={handleDownload}
+        disabled={checking || !pdfUrl}
+        aria-label="Download Resume"
+      >
+        <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
+        <span className="hidden whitespace-nowrap xl:inline">
+          {checking ? "Checking…" : "Download Resume"}
+        </span>
+      </button>
+    </>
+  );
+
   return (
-    <div className="sticky bottom-0 left-0 right-0 flex h-[var(--resume-control-bar-height)] items-center justify-center px-[var(--resume-padding)] text-gray-600 lg:justify-between">
+    <div className="sticky bottom-0 left-0 right-0 flex h-[var(--resume-control-bar-height)] items-center justify-center gap-4 px-[var(--resume-padding)] text-gray-600 lg:justify-between">
       <div className="flex items-center gap-2">
         <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
         <input
@@ -113,39 +153,13 @@ export const ResumeControlBar = ({
           <span className="select-none">Autoscale</span>
         </label>
       </div>
-      <div className="flex items-center gap-2">
-        {saveError && (
-          <span className="text-sm text-red-600" role="alert">
-            {saveError}
-          </span>
-        )}
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-0.5 hover:bg-gray-100 disabled:opacity-50"
-          onClick={handleSave}
-          disabled={checking || saving || !pdfUrl}
-        >
-          {saved ? (
-            <CheckIcon className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <BookmarkIcon className="h-4 w-4" aria-hidden="true" />
-          )}
-          <span className="whitespace-nowrap" aria-live="polite">
-            {saving ? "Saving..." : saved ? "Saved to My Resumes" : "Save to My Resumes"}
-          </span>
-        </button>
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-0.5 hover:bg-gray-100 disabled:opacity-50"
-          onClick={handleDownload}
-          disabled={checking || !pdfUrl}
-        >
-          <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
-          <span className="whitespace-nowrap">
-            {checking ? "Checking..." : "Download Resume"}
-          </span>
-        </button>
-      </div>
+      {saveError && (
+        <span className="text-sm text-red-600" role="alert">
+          {saveError}
+        </span>
+      )}
+      {/* Save and Download render in the top nav bar. */}
+      {navSlot && createPortal(actions, navSlot)}
       {gateAction && (
         <SignUpToDownloadModal
           action={gateAction}

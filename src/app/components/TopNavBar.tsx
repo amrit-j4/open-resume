@@ -20,8 +20,8 @@ export const TopNavBar = () => {
         isHomePage && "bg-dot"
       )}
     >
-      <div className="flex h-10 w-full items-center justify-between">
-        <Link href="/">
+      <div className="flex h-10 w-full items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr]">
+        <Link href="/" className="justify-self-start">
           <span className="sr-only">{SITE_NAME}</span>
           <Image
             src={logoSrc}
@@ -32,7 +32,7 @@ export const TopNavBar = () => {
         </Link>
         <nav
           aria-label="Site Nav Bar"
-          className="flex items-center gap-2 text-sm font-medium"
+          className="flex items-center justify-center gap-2 text-sm font-medium"
         >
           {[
             ["/resume-builder", "Resume Builder"],
@@ -46,10 +46,14 @@ export const TopNavBar = () => {
               {text}
             </Link>
           ))}
+        </nav>
+        <div className="flex items-center justify-end gap-2 text-sm font-medium">
+          {/* The resume builder fills this slot with its Save and Download actions (see ResumeControlBar). */}
+          <div id="nav-actions" className="flex items-center gap-2" />
           {user && (
             <a
               href={DASHBOARD_URL}
-              className="rounded-md px-1.5 py-2 text-gray-500 hover:bg-gray-100 focus-visible:bg-gray-100 lg:px-4"
+              className="hidden rounded-md px-1.5 py-2 text-gray-500 hover:bg-gray-100 focus-visible:bg-gray-100 lg:inline-block lg:px-4"
             >
               Dashboard
             </a>
@@ -70,7 +74,7 @@ export const TopNavBar = () => {
               {getInitials(user.name)}
             </a>
           )}
-        </nav>
+        </div>
       </div>
     </header>
   );
