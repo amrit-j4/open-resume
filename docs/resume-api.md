@@ -53,28 +53,58 @@ Every error is `{ "error": "<message safe to show the user>" }` with a status:
 ```jsonc
 {
   "analysis": {
-    "matchScore": 82,                       // 0-100
+    "matchScore": 82,                       // 0-100. When there is a breakdown, the sum of its five scores
+    "breakdown": [                          // where the score comes from; [] if the model gave no usable one
+      { "key": "skills", "label": "Required skills", "score": 34, "max": 40, "note": "Why points were lost; empty when full" }
+      // then experience (max 25), keywords (20), education (10), clarity (5), always in this order
+    ],
+    "editNote": "...",                      // why wording can or can't close the gap; often empty. Show it above the edits
     "verdict": "Strong fit. ...",
     "job": { "title": "...", "company": "..." },
     "matchedKeywords": ["Python", "SQL"],
     "missingKeywords": [{ "keyword": "dbt", "importance": "high|medium|low", "advice": "..." }],
     "strengths": ["..."],
     "gaps": ["..."],
-    "changes": [{ "section": "summary|workExperiences|educations|projects|skills|custom", "where": "...", "before": "...", "after": "...", "reason": "..." }]
+    "edits": [{
+      "id": "edit-1",
+      "kind": "replace|add",
+      "section": "summary|workExperiences|educations|projects|skills",
+      "entryIndex": 0,                      // which job, school or project (0-based). Only for workExperiences, educations and projects
+      "bulletIndex": 1,                     // replace: which bullet (0-based). add: the position to insert at. Not for summary
+      "where": "Brightwave Retail",         // a label to show
+      "before": "...",                      // the text replaced; "" for an add
+      "after": "...", "reason": "...",
+      "basedOn": "..."                      // add only: the part of the resume the new text comes from
+    }]
   },
-  "resume": { /* Resume: the resume as read */ },
-  "tailoredResume": { /* Resume: reworded for this job; load this into the builder */ },
+  "resume": { /* Resume: the resume as read. Every edit applies to this */ },
+  "tailoredResume": { /* Resume: `resume` with every edit applied */ },
   "job": { "source": "text|link", "url": "https://..." }   // url only for a link, after redirects
 }
 ```
 
 Takes about 30 to 60 seconds, so use a long client timeout and show progress. Put any proxy or gateway timeout above 90 seconds.
 
-### The tailored resume is reworded, never invented
+### Edits: reworded or added, never invented
 
-Whatever the model returns, the server puts back contact details, employers, titles, dates, schools, degrees and the number of entries; keeps
-the original bullets of any entry whose rewrite brings in a number that isn't in the original; and drops skills with no evidence in the
-original. `changes` only lists edits that survived those checks. Missing keywords are advice only: they are never added to the resume.
+The model proposes **edits**, each a single change at an exact place. That is what lets a client show each suggestion on its own and let the
+user accept or reject it: apply only the accepted ones to `resume`.
+
+- A **replace** swaps the text at `section` + `entryIndex` + `bulletIndex` for `after`. `before` is always the text that is really there.
+- An **add** puts `after` in as a new bullet (or skills line). `bulletIndex` is the position among the bullets the entry has in `resume`: `0`
+  puts it first and the bullet count puts it last. `basedOn` says which part of the resume it comes from; show it to the user.
+- Every position refers to `resume` as it was read, never to the result of another edit. So any subset of the edits can be applied, in any
+  order. Replace the text first, then slot the adds in around the original bullets; adds at the same position keep the order they came in.
+  The web page does this live with `applyEdits` in `src/app/lib/resume-analysis/apply-edits.ts`.
+- Every edit is checked on the server before it is returned. It is dropped if it points at a place that doesn't exist, only changes
+  punctuation or capitals, or uses a figure that isn't written in its own entry (the summary may use any figure the resume has).
+  At most one edit per place, at most 20 edits.
+- An **add** is held to a stricter standard. It must use only words the resume already uses, so it can't bring in a tool or skill; it can't
+  repeat a bullet that is already there; it needs a `basedOn`; it can't go in the summary; and there are at most 6 of them.
+- Contact details, employers, titles, dates, schools, degrees, featured skills and the extras (certifications, awards, publications,
+  languages) can't be edited.
+- Missing keywords are advice only: they are never written into the resume.
+- `tailoredResume` is `resume` with all edits applied, for clients that don't offer a choice.
 
 ### Job links
 

@@ -3,7 +3,7 @@
  */
 import { analyzeResumeWithAi } from "lib/resume-analysis/analyze-with-ai";
 import { AiRequestError } from "lib/ai/gemini";
-import type { Resume } from "lib/redux/types";
+import { applyEdits } from "lib/resume-analysis/apply-edits";
 import { JOB_DESCRIPTION, RESUME } from "lib/resume-analysis/__fixtures__/analysis";
 
 const fetchMock = jest.fn();
@@ -16,27 +16,20 @@ const geminiAnswer = (answer: unknown) => ({
   text: async () => "",
 });
 
-const clone = (): Resume => JSON.parse(JSON.stringify(RESUME));
-
-const modelAnswer = (overrides: Record<string, unknown> = {}) => {
-  const tailored = clone();
-  tailored.profile.summary = "Senior data analyst who builds forecasting models and mentors analysts.";
-  tailored.workExperiences[0].descriptions = ["Led a team of 4 analysts", "Built a demand forecasting model that cut stock-outs by 18%"];
-  return {
-    job: { title: "Senior Data Analyst", company: "Northern Lights Energy" },
-    matchScore: 82,
-    verdict: "Strong fit. Add the missing tools if you have used them.",
-    matchedKeywords: ["Python", "SQL", "Power BI"],
-    missingKeywords: [{ keyword: "dbt", importance: "medium", advice: "Mention it if you have used it." }],
-    strengths: ["Forecasting experience"],
-    gaps: ["No Snowflake"],
-    changes: [
-      { section: "summary", where: "Summary", before: RESUME.profile.summary, after: tailored.profile.summary, reason: "Targets the role" },
-    ],
-    tailoredResume: tailored,
-    ...overrides,
-  };
-};
+const modelAnswer = (overrides: Record<string, unknown> = {}) => ({
+  job: { title: "Senior Data Analyst", company: "Northern Lights Energy" },
+  matchScore: 82,
+  verdict: "Strong fit. Add the missing tools if you have used them.",
+  matchedKeywords: ["Python", "SQL", "Power BI"],
+  missingKeywords: [{ keyword: "dbt", importance: "medium", advice: "Mention it if you have used it." }],
+  strengths: ["Forecasting experience"],
+  gaps: ["No Snowflake"],
+  edits: [
+    { section: "summary", after: "Senior data analyst who builds forecasting models and mentors analysts.", reason: "Targets the role" },
+    { section: "workExperiences", entry: 0, bullet: 1, after: "Led a team of 4 analysts, mentoring juniors", reason: "Shows the mentoring the job wants" },
+  ],
+  ...overrides,
+});
 
 beforeEach(() => {
   fetchMock.mockReset();
@@ -53,81 +46,188 @@ afterEach(() => {
 const sentPrompt = () => JSON.parse(fetchMock.mock.calls[0][1].body).contents[0].parts.map((p: { text: string }) => p.text) as string[];
 
 describe("analyzeResumeWithAi", () => {
-  test("gives the model the resume and the job in separate, labelled blocks", async () => {
+  test("tells the model the extras can't be edited, and an edit to them is dropped", async () => {
+    fetchMock.mockResolvedValue(
+      geminiAnswer(modelAnswer({ edits: [{ section: "custom", bullet: 0, after: "Microsoft Certified: Data Analyst Expert (2022)", reason: "r" }] }))
+    );
+
+    const { analysis, tailoredResume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+
+    expect(sentPrompt()[0]).toMatch(/never edit .*the extras/i);
+    expect(analysis.edits).toEqual([]);
+    expect(tailoredResume.custom).toEqual(RESUME.custom);
+  });
+
+  test("gives the model an indexed outline of the resume and the job, in separate labelled blocks", async () => {
     fetchMock.mockResolvedValue(geminiAnswer(modelAnswer()));
 
     await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
 
     const [instructions, resumeBlock, jobBlock] = sentPrompt();
     expect(instructions).toMatch(/never invent or add an employer/i);
-    expect(resumeBlock).toBe(`<resume>\n${JSON.stringify(RESUME)}\n</resume>`);
+    expect(resumeBlock).toMatch(/^<resume>\n/);
+    expect(resumeBlock).toContain("[1] Led a team of 4 analysts");
+    expect(resumeBlock).not.toContain('"workExperiences"'); // an outline, not JSON
     expect(jobBlock).toBe(`<job_description>\n${JOB_DESCRIPTION}\n</job_description>`);
   });
 
-  test("returns the report, the original resume and the tailored resume", async () => {
+  test("returns the report, the original resume and checked edits", async () => {
     fetchMock.mockResolvedValue(geminiAnswer(modelAnswer()));
 
-    const result = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+    const { analysis, resume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
 
-    expect(result.analysis.matchScore).toBe(82);
-    expect(result.analysis.job).toEqual({ title: "Senior Data Analyst", company: "Northern Lights Energy" });
-    expect(result.analysis.missingKeywords).toEqual([{ keyword: "dbt", importance: "medium", advice: "Mention it if you have used it." }]);
-    expect(result.resume).toBe(RESUME);
-    expect(result.tailoredResume.profile.summary).toBe("Senior data analyst who builds forecasting models and mentors analysts.");
-    expect(result.tailoredResume.workExperiences[0].descriptions[0]).toBe("Led a team of 4 analysts");
-    expect(result.analysis.changes).toHaveLength(1);
+    expect(analysis.matchScore).toBe(82);
+    expect(analysis.job).toEqual({ title: "Senior Data Analyst", company: "Northern Lights Energy" });
+    expect(analysis.missingKeywords).toEqual([{ keyword: "dbt", importance: "medium", advice: "Mention it if you have used it." }]);
+    expect(resume).toBe(RESUME);
+    expect(analysis.edits).toEqual([
+      expect.objectContaining({ id: "edit-1", section: "summary", where: "Summary", before: RESUME.profile.summary }),
+      expect.objectContaining({ id: "edit-2", section: "workExperiences", entryIndex: 0, bulletIndex: 1, where: "Brightwave Retail", before: "Led a team of 4 analysts" }),
+    ]);
   });
 
-  test("puts back anything the model was not allowed to change", async () => {
-    const answer = modelAnswer();
-    answer.tailoredResume.profile.name = "Someone Else";
-    answer.tailoredResume.workExperiences[0].company = "Google";
-    answer.tailoredResume.workExperiences.push({ company: "Invented Inc", jobTitle: "CEO", date: "2024", descriptions: ["Ran it"] });
-    answer.tailoredResume.skills.featuredSkills.push({ skill: "Snowflake", rating: 5 });
-    fetchMock.mockResolvedValue(geminiAnswer(answer));
+  test("the tailored resume is the original with every edit applied", async () => {
+    fetchMock.mockResolvedValue(geminiAnswer(modelAnswer()));
 
-    const { tailoredResume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+    const { analysis, tailoredResume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
 
-    expect(tailoredResume.profile.name).toBe("Priya Nair");
-    expect(tailoredResume.workExperiences.map((w) => w.company)).toEqual(["Brightwave Retail", "Coastline Logistics"]);
-    expect(tailoredResume.skills.featuredSkills.map((s) => s.skill)).toEqual(["Python", "SQL", "Power BI"]);
+    expect(tailoredResume).toEqual(applyEdits(RESUME, analysis.edits));
+    expect(tailoredResume.profile.summary).toBe("Senior data analyst who builds forecasting models and mentors analysts.");
+    expect(tailoredResume.workExperiences[0].descriptions[1]).toBe("Led a team of 4 analysts, mentoring juniors");
+    // Everything the edits didn't touch is the original.
+    expect(tailoredResume.workExperiences[1]).toEqual(RESUME.workExperiences[1]);
+    expect(tailoredResume.profile.name).toBe(RESUME.profile.name);
   });
 
-  test("does not report an edit that was undone because it invented a number", async () => {
-    const answer = modelAnswer();
-    answer.tailoredResume.workExperiences[0].descriptions = ["Grew revenue by 300%"];
-    answer.changes.push({
-      section: "workExperiences",
-      where: "Brightwave Retail",
-      before: "Led a team of 4 analysts",
-      after: "Grew revenue by 300%",
-      reason: "Sounds impressive",
-    });
-    fetchMock.mockResolvedValue(geminiAnswer(answer));
+  test("a suggested new bullet is added to the tailored resume, with where it comes from", async () => {
+    const resume = { ...RESUME, profile: { ...RESUME.profile, summary: "Data analyst who mentored junior analysts on forecasting." } };
+    fetchMock.mockResolvedValue(
+      geminiAnswer(
+        modelAnswer({
+          edits: [
+            {
+              action: "add",
+              section: "workExperiences",
+              entry: 0,
+              position: 2,
+              after: "Mentored junior analysts on forecasting",
+              reason: "The job wants mentoring",
+              basedOn: "The summary says the candidate mentored junior analysts",
+            },
+          ],
+        })
+      )
+    );
 
-    const result = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+    const { analysis, tailoredResume } = await analyzeResumeWithAi(resume, JOB_DESCRIPTION);
 
-    expect(result.tailoredResume.workExperiences[0].descriptions).toEqual(RESUME.workExperiences[0].descriptions);
-    expect(result.analysis.changes.map((c) => c.after)).toEqual([answer.tailoredResume.profile.summary]);
+    expect(analysis.edits).toEqual([
+      expect.objectContaining({ kind: "add", where: "Brightwave Retail", before: "", bulletIndex: 2, basedOn: "The summary says the candidate mentored junior analysts" }),
+    ]);
+    expect(tailoredResume.workExperiences[0].descriptions).toEqual([...RESUME.workExperiences[0].descriptions, "Mentored junior analysts on forecasting"]);
   });
 
-  test("uses the original resume when the model sends no tailored one", async () => {
-    const { tailoredResume: _omitted, ...withoutTailored } = modelAnswer();
-    fetchMock.mockResolvedValue(geminiAnswer(withoutTailored));
+  test("an add that invents something never reaches the report or the tailored resume", async () => {
+    fetchMock.mockResolvedValue(
+      geminiAnswer(
+        modelAnswer({
+          edits: [
+            { action: "add", section: "workExperiences", entry: 0, position: 0, after: "Built Snowflake pipelines with dbt", reason: "The job wants it", basedOn: "Nothing" },
+            { action: "add", section: "workExperiences", entry: 0, position: 0, after: "Led a team of 4 analysts", reason: "x", basedOn: "The bullet above" },
+            { action: "add", section: "workExperiences", entry: 0, position: 0, after: "Led 50 analysts", reason: "x", basedOn: "Invented" },
+          ],
+        })
+      )
+    );
 
-    const result = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+    const { analysis, tailoredResume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
 
-    expect(result.tailoredResume).toEqual(RESUME);
-    expect(result.analysis.changes).toEqual([]);
+    expect(analysis.edits).toEqual([]);
+    expect(tailoredResume).toEqual(RESUME);
+  });
+
+  test("asks the model to score five parts that add up, and to explain what wording can't fix", async () => {
+    fetchMock.mockResolvedValue(geminiAnswer(modelAnswer()));
+    await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+
+    const [instructions] = sentPrompt();
+    for (const part of ['"skills" (up to 40)', '"experience" (up to 25)', '"keywords" (up to 20)', '"education" (up to 10)', '"clarity" (up to 5)']) {
+      expect(instructions).toContain(part);
+    }
+    expect(instructions).toMatch(/"matchScore" is the sum of the five/);
+    expect(instructions).toMatch(/"editNote"/);
+  });
+
+  test("returns the breakdown, makes the score its sum, and passes on the note", async () => {
+    fetchMock.mockResolvedValue(
+      geminiAnswer(
+        modelAnswer({
+          matchScore: 90,
+          editNote: "Wording can fix the keywords, but not the seniority gap.",
+          breakdown: [
+            { category: "skills", score: 30, note: "No audio middleware." },
+            { category: "experience", score: 8, note: "Much more senior than the job." },
+            { category: "keywords", score: 15, note: "" },
+            { category: "education", score: 10, note: "" },
+            { category: "clarity", score: 5, note: "" },
+          ],
+        })
+      )
+    );
+
+    const { analysis } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+
+    expect(analysis.matchScore).toBe(68);
+    expect(analysis.breakdown.map((b) => b.score)).toEqual([30, 8, 15, 10, 5]);
+    expect(analysis.breakdown[1].note).toBe("Much more senior than the job.");
+    expect(analysis.editNote).toBe("Wording can fix the keywords, but not the seniority gap.");
+  });
+
+  test("tells the model what an add may and may not be", async () => {
+    fetchMock.mockResolvedValue(geminiAnswer(modelAnswer()));
+    await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+    const [instructions] = sentPrompt();
+    expect(instructions).toMatch(/"add" may only state something the resume already says/);
+    expect(instructions).toMatch(/"basedOn"/);
+    expect(instructions).toMatch(/Never use an "add" for something the job asks for that the resume doesn't show/);
+  });
+
+  test("an edit that would invent something never reaches the report or the tailored resume", async () => {
+    fetchMock.mockResolvedValue(
+      geminiAnswer(
+        modelAnswer({
+          edits: [
+            { section: "workExperiences", entry: 0, bullet: 0, after: "Grew revenue by 300%", reason: "Impressive" },
+            { section: "skills", bullet: 0, after: "Tableau, Snowflake, dbt", reason: "Matches the job" },
+            { section: "workExperiences", entry: 0, bullet: 1, after: "Led a team of 4 analysts, mentoring juniors", reason: "fine" },
+          ],
+        })
+      )
+    );
+
+    const { analysis, tailoredResume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+
+    expect(analysis.edits.map((e) => e.after)).toEqual(["Led a team of 4 analysts, mentoring juniors"]);
+    expect(JSON.stringify(tailoredResume)).not.toMatch(/300%|snowflake|dbt/i);
+  });
+
+  test("gives back the original resume when the model suggests nothing", async () => {
+    fetchMock.mockResolvedValue(geminiAnswer(modelAnswer({ edits: [] })));
+
+    const { analysis, tailoredResume } = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
+
+    expect(analysis.edits).toEqual([]);
+    expect(tailoredResume).toEqual(RESUME);
   });
 
   test("copes with an answer that is not shaped as asked", async () => {
-    fetchMock.mockResolvedValue(geminiAnswer({ matchScore: "high", tailoredResume: "nope", missingKeywords: 7 }));
+    fetchMock.mockResolvedValue(geminiAnswer({ matchScore: "high", edits: "nope", missingKeywords: 7 }));
 
     const result = await analyzeResumeWithAi(RESUME, JOB_DESCRIPTION);
 
     expect(result.analysis.matchScore).toBe(0);
     expect(result.analysis.missingKeywords).toEqual([]);
+    expect(result.analysis.edits).toEqual([]);
     expect(result.tailoredResume).toEqual(RESUME);
   });
 

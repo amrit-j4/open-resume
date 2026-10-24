@@ -1,16 +1,6 @@
-import Link from "next/link";
-import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { cx } from "lib/cx";
-import type { ResumeAnalysis, SuggestedChange } from "lib/resume-analysis/types";
-
-const SECTION_LABELS: Record<SuggestedChange["section"], string> = {
-  summary: "Summary",
-  workExperiences: "Work experience",
-  educations: "Education",
-  projects: "Projects",
-  skills: "Skills",
-  custom: "Extras",
-};
+import type { ResumeAnalysis } from "lib/resume-analysis/types";
+import { EditCard, type Decision } from "resume-analysis/EditCard";
 
 const IMPORTANCE_LABELS = { high: "High priority", medium: "Medium priority", low: "Low priority" } as const;
 
@@ -70,51 +60,124 @@ const BulletList = ({ items, empty }: { items: string[]; empty: string }) =>
     </ul>
   );
 
+/** Where the score comes from, so a low number can be understood: each part shows what it is worth and, in words, why points were lost. */
+const ScoreBreakdown = ({ items }: { items: ResumeAnalysis["breakdown"] }) => (
+  <Card title="Where the Score Comes From">
+    <ul className="space-y-4">
+      {items.map((item) => {
+        const full = item.score >= item.max;
+        return (
+          <li key={item.key}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-medium text-gray-900">{item.label}</span>
+              <span className="text-sm tabular-nums text-gray-600">
+                {item.score} / {item.max}
+              </span>
+            </div>
+            <div
+              className="mt-1.5 h-2 overflow-hidden rounded-full bg-gray-200"
+              role="meter"
+              aria-label={item.label}
+              aria-valuemin={0}
+              aria-valuemax={item.max}
+              aria-valuenow={item.score}
+            >
+              <div
+                className={cx("h-full rounded-full", full ? "bg-green-600" : item.score / item.max >= 0.6 ? "bg-blue-600" : "bg-amber-600")}
+                style={{ width: `${(item.score / item.max) * 100}%` }}
+              />
+            </div>
+            {item.note && <p className="mt-1.5 text-sm text-gray-600">{item.note}</p>}
+          </li>
+        );
+      })}
+    </ul>
+  </Card>
+);
+
+const ghostButton =
+  "rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900";
+
+/** The report: the verdict and score, the suggestions to accept or reject, the keywords, and what is strong and weak. */
 export const AnalysisReport = ({
   analysis,
-  applied,
-  canUndo,
-  confirming,
-  onAskToApply,
-  onCancelApply,
-  onApply,
-  onUndo,
+  decisions,
+  onDecide,
+  onAcceptAll,
+  onRejectAll,
+  onReset,
   headingRef,
 }: {
   analysis: ResumeAnalysis;
-  applied: boolean;
-  canUndo: boolean;
-  confirming: boolean;
-  onAskToApply: () => void;
-  onCancelApply: () => void;
-  onApply: () => void;
-  onUndo: () => void;
+  decisions: Record<string, Decision>;
+  onDecide: (id: string, decision: Decision | undefined) => void;
+  onAcceptAll: () => void;
+  onRejectAll: () => void;
+  onReset: () => void;
   headingRef: React.RefObject<HTMLHeadingElement>;
 }) => {
   const jobName = [analysis.job.title, analysis.job.company].filter(Boolean).join(" at ");
-  const isWeak = analysis.matchScore < 30;
+  const accepted = analysis.edits.filter((edit) => decisions[edit.id] === "accepted").length;
+  const rejected = analysis.edits.filter((edit) => decisions[edit.id] === "rejected").length;
 
   return (
-    <div className="mt-10 space-y-5">
-      <section className="flex flex-col gap-6 rounded-xl border border-gray-200 p-6 sm:flex-row sm:items-center">
+    <div className="space-y-5">
+      <section className="flex flex-col gap-5 rounded-xl border border-gray-200 p-5 sm:flex-row sm:items-center">
         <ScoreRing score={analysis.matchScore} />
         <div className="min-w-0">
           <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900 outline-none">
             Your Resume Analysis
           </h2>
           {jobName && <p className="mt-1 text-sm text-gray-500">For {jobName}</p>}
-          {analysis.verdict && <p className="mt-3 text-pretty text-gray-700">{analysis.verdict}</p>}
+          {analysis.verdict && <p className="mt-3 text-pretty text-sm text-gray-700">{analysis.verdict}</p>}
         </div>
       </section>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <Card title="Strengths">
-          <BulletList items={analysis.strengths} empty="No clear strengths for this job were found." />
-        </Card>
-        <Card title="Gaps">
-          <BulletList items={analysis.gaps} empty="No major gaps found." />
-        </Card>
-      </div>
+      {analysis.breakdown.length > 0 && <ScoreBreakdown items={analysis.breakdown} />}
+
+      <Card title="Suggested Changes">
+        {analysis.editNote && (
+          <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-950" data-testid="edit-note">
+            {analysis.editNote}
+          </p>
+        )}
+        {analysis.edits.length === 0 ? (
+          <p className="text-sm text-gray-500">No wording changes are suggested. Your resume already reads well for this job.</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-gray-600" aria-live="polite" data-testid="decision-count">
+                <span className="tabular-nums">
+                  {accepted} of {analysis.edits.length}
+                </span>{" "}
+                accepted
+                {rejected > 0 && (
+                  <>
+                    , <span className="tabular-nums">{rejected}</span> rejected
+                  </>
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={onAcceptAll} className={ghostButton}>
+                  Accept All
+                </button>
+                <button type="button" onClick={onRejectAll} className={ghostButton}>
+                  Reject All
+                </button>
+                <button type="button" onClick={onReset} disabled={accepted + rejected === 0} className={cx(ghostButton, "disabled:opacity-50")}>
+                  Reset
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">The preview shows your resume with the accepted changes.</p>
+            <ol className="mt-4 space-y-3">
+              {analysis.edits.map((edit, index) => (
+                <EditCard key={edit.id} edit={edit} number={index + 1} decision={decisions[edit.id]} onDecide={(decision) => onDecide(edit.id, decision)} />
+              ))}
+            </ol>
+          </>
+        )}
+      </Card>
 
       <Card title="Keywords">
         <h4 className="text-sm font-medium text-gray-900">
@@ -162,91 +225,14 @@ export const AnalysisReport = ({
         )}
       </Card>
 
-      <Card title="Suggested Changes">
-        {analysis.changes.length === 0 ? (
-          <p className="text-sm text-gray-500">No wording changes are suggested. Your resume already reads well for this job.</p>
-        ) : (
-          <ol className="space-y-4">
-            {analysis.changes.map((change, index) => (
-              <li key={index} className="rounded-lg border border-gray-200 p-4">
-                <p className="text-sm font-medium text-gray-900">
-                  {SECTION_LABELS[change.section]}
-                  {change.where && <span className="font-normal text-gray-500"> &middot; {change.where}</span>}
-                </p>
-                <dl className="mt-2 space-y-2 text-sm">
-                  {change.before && (
-                    <div>
-                      <dt className="text-xs font-medium uppercase text-gray-500">Before</dt>
-                      <dd className="mt-0.5 text-gray-600">{change.before}</dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt className="text-xs font-medium uppercase text-gray-500">After</dt>
-                    <dd className="mt-0.5 rounded bg-green-50 px-2 py-1 text-gray-900">{change.after}</dd>
-                  </div>
-                </dl>
-                {change.reason && <p className="mt-2 text-sm text-gray-600">{change.reason}</p>}
-              </li>
-            ))}
-          </ol>
-        )}
-      </Card>
-
-      <section className="rounded-xl border border-gray-200 bg-gray-50 p-5" aria-live="polite">
-        {applied ? (
-          <div className="flex items-start gap-3">
-            <CheckCircleIcon className="mt-0.5 h-6 w-6 shrink-0 text-green-600" aria-hidden="true" />
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Loaded into the resume builder</h3>
-              <p className="mt-1 text-sm text-gray-600">Your tailored resume is ready to edit and download.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link href="/resume-builder" className="bg-primary rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80">
-                  Open Resume Builder
-                </Link>
-                {canUndo && (
-                  <button
-                    type="button"
-                    onClick={onUndo}
-                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100"
-                  >
-                    Undo
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <h3 className="text-base font-semibold text-gray-900">Use the tailored resume</h3>
-            <p className="mt-1 text-sm text-gray-600">
-              {isWeak
-                ? "This job is a weak match, and tailoring can only reword what you've already done. You can still load the reworded version."
-                : "We reworded your resume for this job using only what you already wrote. Nothing was added. Review it in the builder before you download it."}
-            </p>
-            {confirming ? (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4" role="alertdialog" aria-label="Replace your resume?">
-                <p className="text-sm text-amber-900">This replaces the resume in the builder. We keep a copy, so you can undo it.</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={onApply} className="bg-primary rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80">
-                    Replace My Resume
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onCancelApply}
-                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" onClick={onAskToApply} className="bg-primary mt-4 rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-80">
-                Apply to Resume Builder
-              </button>
-            )}
-          </>
-        )}
-      </section>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card title="Strengths">
+          <BulletList items={analysis.strengths} empty="No clear strengths for this job were found." />
+        </Card>
+        <Card title="Gaps">
+          <BulletList items={analysis.gaps} empty="No major gaps found." />
+        </Card>
+      </div>
     </div>
   );
 };

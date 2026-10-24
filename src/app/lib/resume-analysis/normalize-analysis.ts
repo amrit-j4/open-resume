@@ -1,9 +1,8 @@
-import { CHANGE_SECTIONS, type ChangeSection, type KeywordImportance, type ResumeAnalysis } from "lib/resume-analysis/types";
+import { SCORE_CATEGORIES, type KeywordImportance, type ResumeAnalysis, type ScoreBreakdownItem } from "lib/resume-analysis/types";
 
 const MAX_KEYWORDS = 30;
 const MAX_MISSING = 20;
 const MAX_POINTS = 10;
-const MAX_CHANGES = 25;
 
 type Json = Record<string, unknown>;
 
@@ -28,14 +27,6 @@ const importance = (value: unknown): KeywordImportance => {
   return normalized === "high" || normalized === "low" ? normalized : "medium";
 };
 
-const section = (value: unknown): ChangeSection | null => {
-  const wanted = typeof value === "string" ? value.trim().toLowerCase() : "";
-  return CHANGE_SECTIONS.find((candidate) => candidate.toLowerCase() === wanted) ?? null;
-};
-
-/** Text with only its letters and digits, lower-cased, so edits that change nothing but punctuation, spacing or capitals can be told apart. */
-const lettersOnly = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-
 const unique = (values: string[]): string[] => {
   const seen = new Set<string>();
   return values.filter((value) => {
@@ -54,8 +45,31 @@ const score = (value: unknown): number => {
   return Math.min(100, Math.round(percent));
 };
 
+/**
+ * The score's parts, in a fixed order, each a whole number within what it is worth. All five must be there for the breakdown to be shown: a
+ * partial one would be misleading. A part that isn't a number counts as missing.
+ */
+const breakdownOf = (value: unknown): ScoreBreakdownItem[] => {
+  const byKey = new Map<string, Json>();
+  for (const entry of asArray(value)) {
+    const e = asObject(entry);
+    const key = typeof e.category === "string" ? e.category.trim().toLowerCase() : typeof e.key === "string" ? e.key.trim().toLowerCase() : "";
+    if (key) byKey.set(key, e);
+  }
+
+  const items: ScoreBreakdownItem[] = [];
+  for (const { key, label, max } of SCORE_CATEGORIES) {
+    const e = byKey.get(key);
+    const raw = e?.score;
+    const n = typeof raw === "string" ? parseFloat(raw) : typeof raw === "number" ? raw : NaN;
+    if (!e || !Number.isFinite(n)) return [];
+    items.push({ key, label, score: Math.min(max, Math.max(0, Math.round(n))), max, note: text(e.note, 250) });
+  }
+  return items;
+};
+
 /** Turns whatever the model returned into a bounded, correctly typed analysis. Missing or wrongly typed values become empty ones. */
-export const normalizeAnalysis = (raw: unknown): ResumeAnalysis => {
+export const normalizeAnalysis = (raw: unknown): Omit<ResumeAnalysis, "edits"> => {
   const root = asObject(raw);
   const job = asObject(root.job);
 
@@ -69,22 +83,13 @@ export const normalizeAnalysis = (raw: unknown): ResumeAnalysis => {
   const matched = unique(textList(root.matchedKeywords, MAX_KEYWORDS * 2, 80));
   const missingNames = new Set(missing.map((entry) => entry.keyword.toLowerCase()));
 
-  const changes = asArray(root.changes)
-    .map((entry) => {
-      const e = asObject(entry);
-      const target = section(e.section);
-      return target
-        ? { section: target, where: text(e.where, 120), before: text(e.before, 800), after: text(e.after, 800), reason: text(e.reason, 400) }
-        : null;
-    })
-    .filter(
-      (entry): entry is NonNullable<typeof entry> =>
-        entry !== null && entry.after.length > 0 && lettersOnly(entry.after) !== lettersOnly(entry.before)
-    )
-    .slice(0, MAX_CHANGES);
+  const breakdown = breakdownOf(root.breakdown);
 
   return {
-    matchScore: score(root.matchScore),
+    // The parts add up to the score, so they can never disagree with the number shown beside them.
+    matchScore: breakdown.length > 0 ? breakdown.reduce((sum, item) => sum + item.score, 0) : score(root.matchScore),
+    breakdown,
+    editNote: text(root.editNote, 500),
     verdict: text(root.verdict, 500),
     job: { title: text(job.title, 150), company: text(job.company, 150) },
     // A keyword is either matched or missing, never both.
@@ -92,6 +97,5 @@ export const normalizeAnalysis = (raw: unknown): ResumeAnalysis => {
     missingKeywords: missing.slice(0, MAX_MISSING),
     strengths: textList(root.strengths, MAX_POINTS, 300),
     gaps: textList(root.gaps, MAX_POINTS, 300),
-    changes,
   };
 };

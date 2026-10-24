@@ -38,14 +38,17 @@ const sectionsWithContent = (resume: Resume): Record<ShowForm, boolean> => ({
 });
 
 /**
- * Loads a tailored resume into the builder. What the builder held before is kept in a backup first, so it can be restored. The person's
+ * Loads a tailored resume into the builder. What the builder held before is kept in a backup first, so it can be restored (with
+ * `keepBackup`, an existing backup is left as it is). The person's
  * template, colours and fonts are kept; sections that now have content are switched on, and none are switched off.
  */
-export const applyTailoredResume = (tailored: Resume): void => {
+export const applyTailoredResume = (tailored: Resume, options: { keepBackup?: boolean } = {}): void => {
   const current = loadStateFromLocalStorage() as RootState | undefined;
   const settings = deepClone(current?.settings ?? initialSettings);
 
-  if (current) {
+  // Applying again after the first time must not replace the backup with the resume that was just applied: Undo has to lead back to the
+  // person's own resume, so a later apply keeps the existing backup.
+  if (current && !(options.keepBackup && hasBackup())) {
     try {
       const backup: Backup = { state: current, savedAt: new Date().toISOString() };
       localStorage.setItem(BACKUP_KEY, JSON.stringify(backup));

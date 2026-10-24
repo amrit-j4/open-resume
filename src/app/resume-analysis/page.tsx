@@ -1,13 +1,17 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getAccessToken } from "lib/auth-gate";
 import { cx } from "lib/cx";
+import { loadStateFromLocalStorage } from "lib/redux/local-storage";
+import { initialSettings, type Settings } from "lib/redux/settingsSlice";
 import { applyTailoredResume, hasBackup, loadBuilderResume, restoreBackup } from "lib/redux/tailor-state";
 import type { Resume } from "lib/redux/types";
+import { applyEdits } from "lib/resume-analysis/apply-edits";
 import type { ResumeAnalysisResult } from "lib/resume-analysis/types";
 import { SIGN_IN_URL, SIGN_UP_URL, SITE_NAME } from "lib/site-config";
 import { ResumeFilePicker } from "components/ResumeFilePicker";
-import { AnalysisReport } from "resume-analysis/AnalysisReport";
+import { AnalysisWorkspace } from "resume-analysis/AnalysisWorkspace";
+import type { Decision } from "resume-analysis/EditCard";
 
 type ResumeSource = "upload" | "builder";
 type JobInput = "text" | "link";
@@ -82,6 +86,9 @@ export default function ResumeAnalysisPage() {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const [result, setResult] = useState<ResumeAnalysisResult | null>(null);
+  const [showResults, setShowResults] = useState(false);
+  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [previewSettings, setPreviewSettings] = useState<Settings>(initialSettings);
   const [confirming, setConfirming] = useState(false);
   const [applied, setApplied] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -97,8 +104,12 @@ export default function ResumeAnalysisPage() {
   }, []);
 
   useEffect(() => {
-    if (result) reportHeadingRef.current?.focus();
-  }, [result]);
+    if (result && showResults) reportHeadingRef.current?.focus();
+  }, [result, showResults]);
+
+  // The resume as it would be with the suggestions accepted so far: what the preview shows and what "Apply" loads.
+  const acceptedEdits = useMemo(() => result?.analysis.edits.filter((edit) => decisions[edit.id] === "accepted") ?? [], [result, decisions]);
+  const previewResume = useMemo(() => (result ? applyEdits(result.resume, acceptedEdits) : undefined), [result, acceptedEdits]);
 
   const analysing = status === "analysing";
 
@@ -153,9 +164,13 @@ export default function ResumeAnalysisPage() {
       }
 
       setResult(data as ResumeAnalysisResult);
+      setDecisions({});
+      // The preview uses the template, colours and fonts the person already chose in the builder.
+      setPreviewSettings((loadStateFromLocalStorage()?.settings as Settings | undefined) ?? initialSettings);
       setApplied(false);
       setConfirming(false);
       setCanUndo(false);
+      setShowResults(true);
       setStatus("idle");
     } catch (error) {
       if ((error as Error).name === "AbortError") {
@@ -173,9 +188,31 @@ export default function ResumeAnalysisPage() {
     }
   };
 
+  /** Any change of mind means what was last applied is no longer what is in the preview. */
+  const changed = () => {
+    setApplied(false);
+    setConfirming(false);
+  };
+
+  const decide = (id: string, decision: Decision | undefined) => {
+    setDecisions((current) => {
+      const next = { ...current };
+      if (decision) next[id] = decision;
+      else delete next[id];
+      return next;
+    });
+    changed();
+  };
+
+  const decideAll = (decision: Decision | undefined) => {
+    setDecisions(decision && result ? Object.fromEntries(result.analysis.edits.map((edit) => [edit.id, decision])) : {});
+    changed();
+  };
+
   const apply = () => {
-    if (!result) return;
-    applyTailoredResume(result.tailoredResume);
+    if (!previewResume) return;
+    // Applying again keeps the first backup, so Undo always leads back to the person's own resume.
+    applyTailoredResume(previewResume, { keepBackup: canUndo });
     setApplied(true);
     setConfirming(false);
     setCanUndo(hasBackup());
@@ -190,6 +227,33 @@ export default function ResumeAnalysisPage() {
 
   const resumeErrorId = "resume-error";
   const jobErrorId = "job-error";
+
+  if (showResults && result && previewResume) {
+    return (
+      <main>
+        <AnalysisWorkspace
+          result={result}
+          previewResume={previewResume}
+          settings={previewSettings}
+          decisions={decisions}
+          acceptedCount={acceptedEdits.length}
+          applied={applied}
+          canUndo={canUndo}
+          confirming={confirming}
+          onDecide={decide}
+          onAcceptAll={() => decideAll("accepted")}
+          onRejectAll={() => decideAll("rejected")}
+          onReset={() => decideAll(undefined)}
+          onAskToApply={() => setConfirming(true)}
+          onCancelApply={() => setConfirming(false)}
+          onApply={apply}
+          onUndo={undo}
+          onBack={() => setShowResults(false)}
+          headingRef={reportHeadingRef}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
@@ -348,19 +412,6 @@ export default function ResumeAnalysisPage() {
         </div>
       </form>
 
-      {result && (
-        <AnalysisReport
-          analysis={result.analysis}
-          applied={applied}
-          canUndo={canUndo}
-          confirming={confirming}
-          onAskToApply={() => setConfirming(true)}
-          onCancelApply={() => setConfirming(false)}
-          onApply={apply}
-          onUndo={undo}
-          headingRef={reportHeadingRef}
-        />
-      )}
     </main>
   );
 }

@@ -20,7 +20,7 @@ const analyze = analyzeResumeWithAi as jest.Mock;
 const fetchPage = fetchJobPage as jest.Mock;
 
 const RESULT = {
-  analysis: { matchScore: 80, verdict: "Good", job: { title: "", company: "" }, matchedKeywords: [], missingKeywords: [], strengths: [], gaps: [], changes: [] },
+  analysis: { matchScore: 80, verdict: "Good", job: { title: "", company: "" }, matchedKeywords: [], missingKeywords: [], strengths: [], gaps: [], edits: [] },
   resume: RESUME,
   tailoredResume: RESUME,
 };

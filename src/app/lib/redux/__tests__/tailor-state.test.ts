@@ -109,7 +109,27 @@ describe("applyTailoredResume and restoreBackup", () => {
     expect(restoreBackup()).toBe(false);
   });
 
-  test("applying twice keeps the backup from before the latest apply", () => {
+  test("applying again with keepBackup leaves the first backup, so Undo leads back to the person's own resume", () => {
+    localStorage.setItem(STATE_KEY, JSON.stringify({ resume: RESUME, settings: initialSettings }));
+    const second: Resume = { ...tailored, profile: { ...tailored.profile, summary: "Second." } };
+
+    applyTailoredResume(tailored);
+    applyTailoredResume(second, { keepBackup: true });
+    expect(stored().resume.profile.summary).toBe("Second.");
+
+    restoreBackup();
+    expect(stored().resume).toEqual(RESUME);
+  });
+
+  test("keepBackup still makes a backup when there isn't one yet", () => {
+    localStorage.setItem(STATE_KEY, JSON.stringify({ resume: RESUME, settings: initialSettings }));
+
+    applyTailoredResume(tailored, { keepBackup: true });
+
+    expect(hasBackup()).toBe(true);
+  });
+
+  test("applying twice without keepBackup keeps the backup from before the latest apply", () => {
     localStorage.setItem(STATE_KEY, JSON.stringify({ resume: RESUME, settings: initialSettings }));
     const second: Resume = { ...tailored, profile: { ...tailored.profile, summary: "Second." } };
 

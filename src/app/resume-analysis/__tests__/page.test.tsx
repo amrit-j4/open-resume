@@ -4,10 +4,23 @@ import ResumeAnalysisPage from "../page";
 import { matchBand } from "../AnalysisReport";
 import { getAccessToken } from "../../lib/auth-gate";
 import { initialSettings } from "../../lib/redux/settingsSlice";
+import { applyEdits } from "../../lib/resume-analysis/apply-edits";
 import { JOB_DESCRIPTION, RESUME } from "../../lib/resume-analysis/__fixtures__/analysis";
-import type { ResumeAnalysisResult } from "../../lib/resume-analysis/types";
+import type { ResumeAnalysisResult, ResumeEdit } from "../../lib/resume-analysis/types";
 
 jest.mock("../../lib/auth-gate", () => ({ getAccessToken: jest.fn() }));
+// The real preview builds a PDF with pdf.js, which needs a browser. This stand-in shows what it would be given.
+jest.mock("../ResumeLivePreview", () => ({
+  ResumeLivePreview: ({ resume, settings }: { resume: typeof RESUME; settings: { themeColor: string } }) => (
+    <div data-testid="preview" data-color={settings.themeColor}>
+      <p data-testid="preview-summary">{resume.profile.summary}</p>
+      <p data-testid="preview-bullet">{resume.workExperiences[0].descriptions[1]}</p>
+      <p data-testid="preview-skills">{resume.skills.descriptions[0]}</p>
+      <p data-testid="preview-count">{resume.workExperiences[0].descriptions.length}</p>
+      <p data-testid="preview-last">{resume.workExperiences[0].descriptions[resume.workExperiences[0].descriptions.length - 1]}</p>
+    </div>
+  ),
+}));
 
 const token = getAccessToken as jest.Mock;
 const fetchMock = jest.fn();
@@ -15,26 +28,53 @@ const fetchMock = jest.fn();
 const STATE_KEY = "job4online-resume-state";
 const BACKUP_KEY = "job4online-resume-backup";
 
-const TAILORED = { ...RESUME, profile: { ...RESUME.profile, summary: "Reworded for the job." } };
-
-const result = (overrides: Partial<ResumeAnalysisResult["analysis"]> = {}): ResumeAnalysisResult => ({
-  analysis: {
-    matchScore: 82,
-    verdict: "Strong fit. Add the missing tools if you have used them.",
-    job: { title: "Senior Data Analyst", company: "Northern Lights Energy" },
-    matchedKeywords: ["Python", "SQL"],
-    missingKeywords: [
-      { keyword: "dbt", importance: "high", advice: "Mention it if you have used it." },
-      { keyword: "Airflow", importance: "low", advice: "Worth learning." },
-    ],
-    strengths: ["Forecasting experience"],
-    gaps: ["No Snowflake"],
-    changes: [{ section: "summary", where: "Summary", before: RESUME.profile.summary, after: "Reworded for the job.", reason: "Targets the role" }],
-    ...overrides,
+const EDITS: ResumeEdit[] = [
+  { id: "edit-1", kind: "replace", section: "summary", where: "Summary", before: RESUME.profile.summary, after: "Reworded for the job.", reason: "Targets the role" },
+  {
+    id: "edit-2",
+    kind: "replace",
+    section: "workExperiences",
+    entryIndex: 0,
+    bulletIndex: 1,
+    where: "Brightwave Retail",
+    before: "Led a team of 4 analysts",
+    after: "Led a team of 4 analysts, mentoring juniors",
+    reason: "Shows the mentoring the job wants",
   },
-  resume: RESUME,
-  tailoredResume: TAILORED,
-});
+  { id: "edit-3", kind: "replace", section: "skills", bulletIndex: 0, where: "Skills", before: "Tableau, Forecasting", after: "Forecasting, Tableau", reason: "Leads with what the job values" },
+];
+
+const BREAKDOWN = [
+  { key: "skills", label: "Required skills", score: 34, max: 40, note: "No audio middleware." },
+  { key: "experience", label: "Experience fit", score: 18, max: 25, note: "" },
+  { key: "keywords", label: "Job keywords", score: 18, max: 20, note: "" },
+  { key: "education", label: "Education and certifications", score: 8, max: 10, note: "" },
+  { key: "clarity", label: "Clarity and results", score: 4, max: 5, note: "" },
+] as ResumeAnalysisResult["analysis"]["breakdown"];
+
+const result = (overrides: Partial<ResumeAnalysisResult["analysis"]> = {}): ResumeAnalysisResult => {
+  const edits = overrides.edits ?? EDITS;
+  return {
+    analysis: {
+      matchScore: 82,
+      breakdown: BREAKDOWN,
+      editNote: "",
+      verdict: "Strong fit. Add the missing tools if you have used them.",
+      job: { title: "Senior Data Analyst", company: "Northern Lights Energy" },
+      matchedKeywords: ["Python", "SQL"],
+      missingKeywords: [
+        { keyword: "dbt", importance: "high", advice: "Mention it if you have used it." },
+        { keyword: "Airflow", importance: "low", advice: "Worth learning." },
+      ],
+      strengths: ["Forecasting experience"],
+      gaps: ["No Snowflake"],
+      ...overrides,
+      edits,
+    } as ResumeAnalysisResult["analysis"],
+    resume: RESUME,
+    tailoredResume: applyEdits(RESUME, edits),
+  };
+};
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 const failed = (status: number, error: string) => ({ ok: false, status, json: async () => ({ error }) });
@@ -213,7 +253,6 @@ describe("analysing", () => {
 
     finish(ok(result()));
     await screen.findByRole("heading", { name: "Your Resume Analysis" });
-    expect(analyseButton()).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 
@@ -290,7 +329,9 @@ describe("analysing", () => {
   });
 });
 
-describe("the report", () => {
+describe("the workspace", () => {
+  const original = { resume: RESUME, settings: { ...initialSettings, themeColor: "#123456" } };
+
   const analyse = async (analysis = result()) => {
     fetchMock.mockResolvedValue(ok(analysis));
     render(<ResumeAnalysisPage />);
@@ -301,65 +342,282 @@ describe("the report", () => {
     await screen.findByRole("heading", { name: "Your Resume Analysis" });
   };
 
-  test("shows the score in numbers and words, the job and the verdict", async () => {
-    await analyse();
+  const accept = (n: number) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Accept suggestion ${n}:`) }));
+  const reject = (n: number) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Reject suggestion ${n}:`) }));
+  const summary = () => screen.getByTestId("preview-summary").textContent;
+  const bullet = () => screen.getByTestId("preview-bullet").textContent;
+  const skills = () => screen.getByTestId("preview-skills").textContent;
+  const count = () => screen.getByTestId("decision-count").textContent;
 
-    expect(screen.getByRole("img", { name: "Match score 82 out of 100: Strong match" })).toBeInTheDocument();
-    expect(screen.getByText("Strong match")).toBeInTheDocument();
-    expect(screen.getByText("For Senior Data Analyst at Northern Lights Energy")).toBeInTheDocument();
-    expect(screen.getByText(/add the missing tools/i)).toBeInTheDocument();
-  });
-
-  test("moves keyboard focus to the report", async () => {
-    await analyse();
-    expect(screen.getByRole("heading", { name: "Your Resume Analysis" })).toHaveFocus();
-  });
-
-  test("lists matched and missing keywords, with a plain-text priority and the advice", async () => {
-    await analyse();
-
-    expect(screen.getByText("Python")).toBeInTheDocument();
-    const dbt = screen.getByText("dbt").closest("li")!;
-    expect(within(dbt).getByText("High priority")).toBeInTheDocument();
-    expect(within(dbt).getByText("Mention it if you have used it.")).toBeInTheDocument();
-    expect(within(screen.getByText("Airflow").closest("li")!).getByText("Low priority")).toBeInTheDocument();
-    expect(screen.getByText(/add one only if it.s true/i)).toBeInTheDocument();
-  });
-
-  test("shows strengths, gaps and each suggested change with its before, after and reason", async () => {
-    await analyse();
-
-    expect(screen.getByText("Forecasting experience")).toBeInTheDocument();
-    expect(screen.getByText("No Snowflake")).toBeInTheDocument();
-    const change = screen.getByText("Targets the role").closest("li")!;
-    expect(within(change).getByText(RESUME.profile.summary)).toBeInTheDocument();
-    expect(within(change).getByText("Reworded for the job.")).toBeInTheDocument();
-  });
-
-  test("says so when nothing needs changing, or nothing is missing", async () => {
-    await analyse(result({ changes: [], missingKeywords: [], matchedKeywords: [], strengths: [], gaps: [] }));
-
-    expect(screen.getByText(/no wording changes are suggested/i)).toBeInTheDocument();
-    expect(screen.getByText(/nothing important is missing/i)).toBeInTheDocument();
-    expect(screen.getByText(/none of the job.s keywords were found/i)).toBeInTheDocument();
-  });
-
-  test("warns that a weak match can only be reworded", async () => {
-    await analyse(result({ matchScore: 12 }));
-    expect(screen.getByText("Weak match")).toBeInTheDocument();
-    expect(screen.getByText(/weak match, and tailoring can only reword/i)).toBeInTheDocument();
-  });
-
-  describe("applying the tailored resume", () => {
-    const original = { resume: RESUME, settings: { ...initialSettings, themeColor: "#123456" } };
-
-    test("asks before replacing, and Cancel changes nothing", async () => {
-      saveBuilderResume();
+  describe("the report", () => {
+    test("shows the score in numbers and words, the job and the verdict", async () => {
       await analyse();
 
-      fireEvent.click(screen.getByRole("button", { name: "Apply to Resume Builder" }));
-      expect(screen.getByRole("alertdialog")).toHaveTextContent(/replaces the resume in the builder/i);
+      expect(screen.getByRole("img", { name: "Match score 82 out of 100: Strong match" })).toBeInTheDocument();
+      expect(screen.getByText("Strong match")).toBeInTheDocument();
+      expect(screen.getByText("For Senior Data Analyst at Northern Lights Energy")).toBeInTheDocument();
+      expect(screen.getByText(/add the missing tools/i)).toBeInTheDocument();
+    });
 
+    test("replaces the form, and moves keyboard focus to the report", async () => {
+      await analyse();
+      expect(screen.getByRole("heading", { name: "Your Resume Analysis" })).toHaveFocus();
+      expect(screen.queryByLabelText("Job description")).not.toBeInTheDocument();
+    });
+
+    test("lists matched and missing keywords, with a plain-text priority and the advice", async () => {
+      await analyse();
+
+      expect(screen.getByText("Python")).toBeInTheDocument();
+      const dbt = screen.getByText("dbt").closest("li")!;
+      expect(within(dbt).getByText("High priority")).toBeInTheDocument();
+      expect(within(dbt).getByText("Mention it if you have used it.")).toBeInTheDocument();
+      expect(within(screen.getByText("Airflow").closest("li")!).getByText("Low priority")).toBeInTheDocument();
+      expect(screen.getByText(/add one only if it.s true/i)).toBeInTheDocument();
+    });
+
+    test("shows where the score comes from, each part with what it is worth and why points were lost", async () => {
+      await analyse();
+
+      expect(screen.getByText("Where the Score Comes From")).toBeInTheDocument();
+      const skills = screen.getByRole("meter", { name: "Required skills" });
+      expect(skills).toHaveAttribute("aria-valuenow", "34");
+      expect(skills).toHaveAttribute("aria-valuemax", "40");
+      expect(screen.getByText("34 / 40")).toBeInTheDocument();
+      expect(screen.getByText("No audio middleware.")).toBeInTheDocument();
+      expect(screen.getAllByRole("meter")).toHaveLength(5);
+    });
+
+    test("leaves the breakdown out when there isn't one", async () => {
+      await analyse(result({ breakdown: [] }));
+      expect(screen.queryByText("Where the Score Comes From")).not.toBeInTheDocument();
+      expect(screen.queryAllByRole("meter")).toHaveLength(0);
+    });
+
+    test("explains above the suggestions what wording can and can't do, when the model says so", async () => {
+      await analyse(result({ matchScore: 43, editNote: "Wording can fix the keywords, but not a gap in seniority." }));
+      expect(screen.getByTestId("edit-note")).toHaveTextContent("Wording can fix the keywords, but not a gap in seniority.");
+    });
+
+    test("shows no note when there is none", async () => {
+      await analyse();
+      expect(screen.queryByTestId("edit-note")).not.toBeInTheDocument();
+    });
+
+    test("shows strengths and gaps", async () => {
+      await analyse();
+      expect(screen.getByText("Forecasting experience")).toBeInTheDocument();
+      expect(screen.getByText("No Snowflake")).toBeInTheDocument();
+    });
+
+    test("says so when nothing needs changing, or nothing is missing", async () => {
+      await analyse(result({ edits: [], missingKeywords: [], matchedKeywords: [], strengths: [], gaps: [] }));
+
+      expect(screen.getByText(/no wording changes are suggested/i)).toBeInTheDocument();
+      expect(screen.getByText(/nothing important is missing/i)).toBeInTheDocument();
+      expect(screen.getByText(/none of the job.s keywords were found/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /apply .*to resume builder/i })).toBeDisabled();
+    });
+  });
+
+  describe("accepting and rejecting suggestions", () => {
+    test("shows each suggestion with its place, before, after and reason, none decided yet", async () => {
+      await analyse();
+
+      const second = screen.getByText("Shows the mentoring the job wants").closest("li")!;
+      expect(within(second).getByText(/Work experience . Brightwave Retail/)).toBeInTheDocument();
+      expect(within(second).getByText("Led a team of 4 analysts")).toBeInTheDocument();
+      expect(within(second).getByText("Led a team of 4 analysts, mentoring juniors")).toBeInTheDocument();
+      expect(count()).toBe("0 of 3 accepted");
+      for (const n of [1, 2, 3]) {
+        expect(screen.getByRole("button", { name: new RegExp(`^Accept suggestion ${n}:`) })).toHaveAttribute("aria-pressed", "false");
+      }
+    });
+
+    test("starts with the preview showing the resume as it is", async () => {
+      await analyse();
+      expect(summary()).toBe(RESUME.profile.summary);
+      expect(bullet()).toBe("Led a team of 4 analysts");
+      expect(skills()).toBe("Tableau, Forecasting");
+    });
+
+    test("accepting a suggestion shows it in the preview straight away, and nothing else", async () => {
+      await analyse();
+
+      accept(2);
+
+      expect(bullet()).toBe("Led a team of 4 analysts, mentoring juniors");
+      expect(summary()).toBe(RESUME.profile.summary);
+      expect(skills()).toBe("Tableau, Forecasting");
+      expect(screen.getByRole("button", { name: /^Accept suggestion 2:/ })).toHaveAttribute("aria-pressed", "true");
+      expect(count()).toBe("1 of 3 accepted");
+    });
+
+    test("each suggestion can be accepted on its own, in any order", async () => {
+      await analyse();
+
+      accept(3);
+      accept(1);
+
+      expect(summary()).toBe("Reworded for the job.");
+      expect(skills()).toBe("Forecasting, Tableau");
+      expect(bullet()).toBe("Led a team of 4 analysts");
+    });
+
+    test("pressing Accept again takes the change back out of the preview", async () => {
+      await analyse();
+      accept(1);
+      expect(summary()).toBe("Reworded for the job.");
+
+      accept(1);
+
+      expect(summary()).toBe(RESUME.profile.summary);
+      expect(screen.getByRole("button", { name: /^Accept suggestion 1:/ })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    test("rejecting leaves the preview alone, and changing your mind works both ways", async () => {
+      await analyse();
+
+      reject(1);
+      expect(summary()).toBe(RESUME.profile.summary);
+      expect(screen.getByRole("button", { name: /^Reject suggestion 1:/ })).toHaveAttribute("aria-pressed", "true");
+      expect(count()).toBe("0 of 3 accepted, 1 rejected");
+
+      accept(1);
+      expect(summary()).toBe("Reworded for the job.");
+      expect(screen.getByRole("button", { name: /^Reject suggestion 1:/ })).toHaveAttribute("aria-pressed", "false");
+      expect(count()).toBe("1 of 3 accepted");
+    });
+
+    test("Accept All, Reject All and Reset", async () => {
+      await analyse();
+
+      fireEvent.click(screen.getByRole("button", { name: "Accept All" }));
+      expect(summary()).toBe("Reworded for the job.");
+      expect(bullet()).toBe("Led a team of 4 analysts, mentoring juniors");
+      expect(skills()).toBe("Forecasting, Tableau");
+      expect(count()).toBe("3 of 3 accepted");
+
+      fireEvent.click(screen.getByRole("button", { name: "Reject All" }));
+      expect(summary()).toBe(RESUME.profile.summary);
+      expect(count()).toBe("0 of 3 accepted, 3 rejected");
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+      expect(count()).toBe("0 of 3 accepted");
+      expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+    });
+
+    test("the preview uses the template and colours already chosen in the builder", async () => {
+      localStorage.setItem(STATE_KEY, JSON.stringify(original));
+      await analyse();
+      expect(screen.getByTestId("preview")).toHaveAttribute("data-color", "#123456");
+    });
+
+    test("falls back to the default look when the builder has nothing saved", async () => {
+      await analyse();
+      expect(screen.getByTestId("preview")).toHaveAttribute("data-color", initialSettings.themeColor);
+    });
+  });
+
+  describe("suggestions that add something new", () => {
+    const NEW_BULLET = "Mentored junior analysts on forecasting";
+    const withAdd = (): ResumeAnalysisResult =>
+      result({
+        edits: [
+          EDITS[0],
+          {
+            id: "edit-2",
+            kind: "add",
+            section: "workExperiences",
+            entryIndex: 0,
+            bulletIndex: 2,
+            where: "Brightwave Retail",
+            before: "",
+            after: NEW_BULLET,
+            reason: "The job wants mentoring",
+            basedOn: 'The summary says "mentors analysts"',
+          },
+        ],
+      });
+
+    test("marks it as new, shows what it is based on, and has no before text", async () => {
+      await analyse(withAdd());
+
+      const card = screen.getByText("The job wants mentoring").closest("li")!;
+      expect(within(card).getByText("New")).toBeInTheDocument();
+      expect(within(card).getByText(NEW_BULLET)).toBeInTheDocument();
+      expect(within(card).getByText("Add")).toBeInTheDocument();
+      expect(within(card).getByText(/based on your resume:/i)).toBeInTheDocument();
+      expect(within(card).getByText(/mentors analysts/)).toBeInTheDocument();
+      expect(within(card).queryByText("Before")).not.toBeInTheDocument();
+    });
+
+    test("a rewording is not marked as new, and shows no source", async () => {
+      await analyse(withAdd());
+      const card = screen.getByText("Targets the role").closest("li")!;
+      expect(within(card).queryByText("New")).not.toBeInTheDocument();
+      expect(within(card).queryByText(/based on your resume/i)).not.toBeInTheDocument();
+      expect(within(card).getByText("After")).toBeInTheDocument();
+    });
+
+    test("accepting it puts the new bullet into the preview, and rejecting it takes nothing out", async () => {
+      await analyse(withAdd());
+      expect(screen.getByTestId("preview-count")).toHaveTextContent("2");
+
+      accept(2);
+      expect(screen.getByTestId("preview-count")).toHaveTextContent("3");
+      expect(screen.getByTestId("preview-last")).toHaveTextContent(NEW_BULLET);
+
+      accept(2);
+      expect(screen.getByTestId("preview-count")).toHaveTextContent("2");
+
+      reject(2);
+      expect(screen.getByTestId("preview-count")).toHaveTextContent("2");
+    });
+
+    test("applying loads the new bullet into the builder, and Undo takes it out again", async () => {
+      localStorage.setItem(STATE_KEY, JSON.stringify(original));
+      await analyse(withAdd());
+      accept(2);
+
+      fireEvent.click(screen.getByRole("button", { name: /apply 1 change/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Replace My Resume" }));
+
+      const saved = JSON.parse(localStorage.getItem(STATE_KEY)!);
+      expect(saved.resume.workExperiences[0].descriptions).toEqual([...RESUME.workExperiences[0].descriptions, NEW_BULLET]);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+      expect(JSON.parse(localStorage.getItem(STATE_KEY)!)).toEqual(original);
+    });
+  });
+
+  describe("applying the accepted changes", () => {
+    const apply = () => {
+      fireEvent.click(screen.getByRole("button", { name: /apply .*to resume builder/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Replace My Resume" }));
+    };
+
+    test("is switched off until something is accepted", async () => {
+      await analyse();
+      expect(screen.getByRole("button", { name: "Apply Changes to Resume Builder" })).toBeDisabled();
+      expect(screen.getByText(/accept a suggestion to add it/i)).toBeInTheDocument();
+    });
+
+    test("says how many changes it will apply", async () => {
+      await analyse();
+      accept(1);
+      expect(screen.getByRole("button", { name: "Apply 1 Change to Resume Builder" })).toBeEnabled();
+      accept(2);
+      expect(screen.getByRole("button", { name: "Apply 2 Changes to Resume Builder" })).toBeEnabled();
+    });
+
+    test("asks before replacing, and Cancel changes nothing", async () => {
+      localStorage.setItem(STATE_KEY, JSON.stringify(original));
+      await analyse();
+      accept(1);
+
+      fireEvent.click(screen.getByRole("button", { name: /apply 1 change/i }));
+      expect(screen.getByRole("alertdialog")).toHaveTextContent(/replaces the resume in the builder/i);
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -367,43 +625,103 @@ describe("the report", () => {
       expect(localStorage.getItem(BACKUP_KEY)).toBeNull();
     });
 
-    test("loads the tailored resume, keeps the person's settings and backs up the old resume", async () => {
-      saveBuilderResume();
+    test("loads the resume with only the accepted changes, keeps the person's settings and backs up the old resume", async () => {
+      localStorage.setItem(STATE_KEY, JSON.stringify(original));
       await analyse();
+      accept(2);
+      reject(1);
 
-      fireEvent.click(screen.getByRole("button", { name: "Apply to Resume Builder" }));
-      fireEvent.click(screen.getByRole("button", { name: "Replace My Resume" }));
+      apply();
 
       expect(await screen.findByText("Loaded into the resume builder")).toBeInTheDocument();
       const saved = JSON.parse(localStorage.getItem(STATE_KEY)!);
-      expect(saved.resume).toEqual(TAILORED);
+      expect(saved.resume).toEqual(applyEdits(RESUME, [EDITS[1]]));
+      expect(saved.resume.profile.summary).toBe(RESUME.profile.summary); // the rejected one
       expect(saved.settings.themeColor).toBe("#123456");
       expect(JSON.parse(localStorage.getItem(BACKUP_KEY)!).state).toEqual(original);
       expect(screen.getByRole("link", { name: "Open Resume Builder" })).toHaveAttribute("href", "/resume-builder");
     });
 
     test("Undo puts the old resume back", async () => {
-      saveBuilderResume();
+      localStorage.setItem(STATE_KEY, JSON.stringify(original));
       await analyse();
-      fireEvent.click(screen.getByRole("button", { name: "Apply to Resume Builder" }));
-      fireEvent.click(screen.getByRole("button", { name: "Replace My Resume" }));
+      accept(1);
+      apply();
 
       fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
 
       expect(JSON.parse(localStorage.getItem(STATE_KEY)!)).toEqual(original);
       expect(localStorage.getItem(BACKUP_KEY)).toBeNull();
-      expect(screen.getByRole("button", { name: "Apply to Resume Builder" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /apply 1 change/i })).toBeInTheDocument();
+    });
+
+    test("changing your mind after applying offers to apply again, and Undo still leads back to the original resume", async () => {
+      localStorage.setItem(STATE_KEY, JSON.stringify(original));
+      await analyse();
+      accept(1);
+      apply();
+      await screen.findByText("Loaded into the resume builder");
+
+      accept(2); // more accepted since the apply
+      expect(screen.queryByText("Loaded into the resume builder")).not.toBeInTheDocument();
+      apply();
+
+      const saved = JSON.parse(localStorage.getItem(STATE_KEY)!);
+      expect(saved.resume).toEqual(applyEdits(RESUME, [EDITS[0], EDITS[1]]));
+      fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+      expect(JSON.parse(localStorage.getItem(STATE_KEY)!)).toEqual(original);
     });
 
     test("works when the builder had nothing saved, with no Undo to offer", async () => {
       await analyse();
+      accept(1);
 
-      fireEvent.click(screen.getByRole("button", { name: "Apply to Resume Builder" }));
-      fireEvent.click(screen.getByRole("button", { name: "Replace My Resume" }));
+      apply();
 
       expect(await screen.findByText("Loaded into the resume builder")).toBeInTheDocument();
-      expect(JSON.parse(localStorage.getItem(STATE_KEY)!).resume).toEqual(TAILORED);
+      expect(JSON.parse(localStorage.getItem(STATE_KEY)!).resume).toEqual(applyEdits(RESUME, [EDITS[0]]));
       expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("moving around", () => {
+    test("Change Resume or Job goes back to the form with everything still filled in", async () => {
+      await analyse();
+
+      fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
+
+      expect(screen.getByLabelText("Job description")).toHaveValue(JOB_DESCRIPTION);
+      expect(screen.getByText("resume.pdf")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Your Resume Analysis" })).not.toBeInTheDocument();
+    });
+
+    test("a new analysis starts with no suggestions accepted", async () => {
+      await analyse();
+      accept(1);
+      fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
+
+      fetchMock.mockResolvedValue(ok(result()));
+      fireEvent.click(analyseButton());
+      await screen.findByRole("heading", { name: "Your Resume Analysis" });
+
+      expect(count()).toBe("0 of 3 accepted");
+      expect(summary()).toBe(RESUME.profile.summary);
+    });
+
+    test("on a narrow screen the analysis and the preview share the space behind tabs", async () => {
+      await analyse();
+
+      const analysisTab = screen.getByRole("tab", { name: "Analysis" });
+      const previewTab = screen.getByRole("tab", { name: "Live Preview" });
+      expect(analysisTab).toHaveAttribute("aria-selected", "true");
+      expect(previewTab).toHaveAttribute("aria-selected", "false");
+
+      fireEvent.click(previewTab);
+
+      expect(previewTab).toHaveAttribute("aria-selected", "true");
+      expect(analysisTab).toHaveAttribute("aria-selected", "false");
+      expect(document.getElementById("panel-report")).toHaveClass("hidden");
+      expect(document.getElementById("panel-preview")).not.toHaveClass("hidden");
     });
   });
 });

@@ -9,6 +9,7 @@
  * Set DUMP_ANALYSIS_TO=/some/dir to also write each answer there as JSON, to read the quality by eye.
  */
 import { POST } from "../route";
+import { applyEdits, bulletCount, textAt } from "lib/resume-analysis/apply-edits";
 import type { ResumeAnalysisResult } from "lib/resume-analysis/types";
 import type { Resume } from "lib/redux/types";
 
@@ -55,6 +56,22 @@ Requirements:
 - Current BLS certification and a Working With Children Check
 - Strong clinical judgement and a commitment to patient safety`;
 
+const JUNIOR_AUDIO_JOB = `Junior Programmer - Audio and Dialogue, Big Ant Studios (Melbourne, Australia)
+
+Big Ant Studios is looking for a Junior Programmer to join our audio and dialogue team. You will implement audio features, integrate dialogue systems and support designers and audio engineers on a shipped sports and open-world title.
+
+You will:
+- Integrate audio middleware (Wwise or FMOD) into our proprietary engine
+- Implement and maintain dialogue and localisation systems
+- Fix audio and dialogue bugs, and work with designers and QA
+
+You have:
+- A degree in computer science or similar, and strong C++ and C#
+- Experience with a game engine such as Unreal or Unity
+- Some audio programming or dialogue system experience
+- Good communication, and willingness to relocate to Melbourne
+Experience with Wwise or FMOD is a bonus. Entry-level candidates welcome.`;
+
 const send = async (fields: Record<string, string | File>) => {
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.append(key, value);
@@ -79,6 +96,7 @@ live("POST /api/resume-analysis against the real Gemini API", () => {
 
   let matchRun: Awaited<ReturnType<typeof send>>;
   let mismatchRun: Awaited<ReturnType<typeof send>>;
+  let juniorRun: Awaited<ReturnType<typeof send>>;
   let original: Resume;
 
   beforeAll(async () => {
@@ -92,6 +110,9 @@ live("POST /api/resume-analysis against the real Gemini API", () => {
     // The second run reuses the resume the first one read, the way the builder's own resume is sent.
     mismatchRun = await send({ resume: JSON.stringify(original), jobText: NURSE_JOB });
     dump("mismatch", mismatchRun.json);
+
+    juniorRun = await send({ resume: JSON.stringify(original), jobText: JUNIOR_AUDIO_JOB });
+    dump("junior", juniorRun.json);
   });
 
   describe("a resume that fits the job", () => {
@@ -162,13 +183,118 @@ live("POST /api/resume-analysis against the real Gemini API", () => {
       for (const figure of Array.from(figures(tailoredResume))) expect(known.has(figure)).toBe(true);
     });
 
-    test("lists edits that are really in the tailored resume", () => {
+    test("suggests edits that each point at a real place and really change the resume", () => {
+      const { edits } = matchRun.json.analysis;
+      expect(edits.length).toBeGreaterThan(0);
+      expect(edits.length).toBeLessThanOrEqual(20);
+      expect(new Set(edits.map((e) => e.id)).size).toBe(edits.length);
+
+      for (const edit of edits) {
+        expect(edit.after.trim()).not.toBe("");
+        expect(edit.reason.length).toBeGreaterThan(5);
+        expect(lower(edit.after)).not.toMatch(/perforce|jenkins|vulkan|replication|dedicated server/);
+        expect(JSON.stringify(applyEdits(original, [edit]))).not.toBe(JSON.stringify(original));
+
+        if (edit.kind === "replace") {
+          // It points at a place that exists, and "before" is what is really there.
+          expect(textAt(original, edit)).toBe(edit.before);
+          expect(edit.after.replace(/[^a-z0-9]/gi, "").toLowerCase()).not.toBe(edit.before.replace(/[^a-z0-9]/gi, "").toLowerCase());
+        } else {
+          // An add goes at a real position, says what it is based on, and is not something the resume already says.
+          expect(edit.before).toBe("");
+          expect(edit.section).not.toBe("summary");
+          expect(edit.bulletIndex).toBeLessThanOrEqual(bulletCount(original, edit)!);
+          expect((edit.basedOn ?? "").length).toBeGreaterThan(5);
+          const tidy = (text: string) => text.replace(/[^a-z0-9]/gi, "").toLowerCase();
+          const existing = edit.section === "skills" ? original.skills.descriptions : original[edit.section as "workExperiences"][edit.entryIndex!].descriptions;
+          expect(existing.map(tidy)).not.toContain(tidy(edit.after));
+        }
+      }
+      expect(edits.filter((e) => e.kind === "add").length).toBeLessThanOrEqual(6);
+    });
+
+    test("an added bullet or skills line only uses words and figures the resume already has", () => {
+      const resumeText = lower(original);
+      const resumeFigures = new Set(JSON.stringify(original).match(/\d[\d,.]*/g)?.map((n) => n.replace(/[.,]+$/, "")));
+      for (const edit of matchRun.json.analysis.edits.filter((e) => e.kind === "add")) {
+        for (const word of lower(edit.after).slice(1, -1).match(/[a-z0-9+#]+/g) ?? []) expect(resumeText).toContain(word);
+        for (const figure of edit.after.match(/\d[\d,.]*/g) ?? []) expect(resumeFigures.has(figure.replace(/[.,]+$/, ""))).toBe(true);
+      }
+    });
+
+    test("never rewords a certification, award or publication", () => {
       const { analysis, tailoredResume } = matchRun.json;
-      expect(analysis.changes.length).toBeGreaterThan(0);
-      const text = lower(tailoredResume);
-      for (const change of analysis.changes) {
-        expect(text).toContain(JSON.stringify(change.after.toLowerCase()).slice(1, -1));
-        expect(change.reason.length).toBeGreaterThan(5);
+      expect(tailoredResume.custom).toEqual(original.custom);
+      expect(analysis.edits.map((e) => e.section)).not.toContain("custom");
+    });
+
+    test("the tailored resume is the original with every edit applied, and each edit can be applied alone", () => {
+      const { analysis, tailoredResume } = matchRun.json;
+      expect(tailoredResume).toEqual(applyEdits(original, analysis.edits));
+
+      for (const edit of analysis.edits) {
+        const alone = applyEdits(original, [edit]);
+        if (edit.kind === "replace") {
+          expect(textAt(alone, edit)).toBe(edit.after);
+          // Only that one place changed.
+          const changedPlaces = analysis.edits.filter((other) => other.kind === "replace" && textAt(alone, other) !== textAt(original, other));
+          expect(changedPlaces.map((e) => e.id)).toEqual([edit.id]);
+        } else {
+          // One bullet more, which is the new text, and nothing else lost.
+          const list = (r: Resume) => (edit.section === "skills" ? r.skills.descriptions : r[edit.section as "workExperiences"][edit.entryIndex!].descriptions);
+          expect(list(alone)).toHaveLength(list(original).length + 1);
+          expect(list(alone)).toContain(edit.after);
+          expect(list(original).every((text) => list(alone).includes(text))).toBe(true);
+        }
+      }
+    });
+  });
+
+  describe("the score explains itself", () => {
+    test.each([
+      ["a good fit", () => matchRun],
+      ["a poor fit", () => mismatchRun],
+      ["a role that is too junior", () => juniorRun],
+    ])("for %s, five parts add up to the score and stay within what each is worth", (_name, run) => {
+      const { analysis } = run().json;
+      expect(analysis.breakdown.map((b) => b.key)).toEqual(["skills", "experience", "keywords", "education", "clarity"]);
+      expect(analysis.breakdown.map((b) => b.max)).toEqual([40, 25, 20, 10, 5]);
+      for (const part of analysis.breakdown) {
+        expect(Number.isInteger(part.score)).toBe(true);
+        expect(part.score).toBeGreaterThanOrEqual(0);
+        expect(part.score).toBeLessThanOrEqual(part.max);
+        if (part.score < part.max) expect(part.note.length).toBeGreaterThan(5); // points lost are explained
+      }
+      expect(analysis.breakdown.reduce((sum, b) => sum + b.score, 0)).toBe(analysis.matchScore);
+    });
+  });
+
+  describe("a senior resume against a junior role", () => {
+    test("succeeds", () => {
+      expect(juniorRun.json.error).toBeUndefined();
+      expect(juniorRun.status).toBe(200);
+    });
+
+    test("loses its points where they really went: seniority and the missing audio work, not the keywords the resume has", () => {
+      const { breakdown, matchScore } = juniorRun.json.analysis;
+      const part = (key: string) => breakdown.find((b) => b.key === key)!;
+      expect(part("experience").score / part("experience").max).toBeLessThan(0.75);
+      expect(lower(breakdown.map((b) => b.note))).toMatch(/senior|junior|level|overqualified/);
+      expect(matchScore).toBeLessThan(80);
+    });
+
+    test("names the audio middleware as missing, and does not invent it", () => {
+      const { analysis, tailoredResume } = juniorRun.json;
+      expect(lower(analysis.missingKeywords.map((m) => m.keyword))).toMatch(/wwise|fmod|audio/);
+      for (const edit of analysis.edits) expect(lower(edit.after)).not.toMatch(/wwise|fmod|audio engineer|audio middleware/);
+      expect(lower(tailoredResume)).not.toMatch(/wwise|fmod/);
+    });
+
+    test("tells the reader what wording can and can't fix, since the score is low and the edits are few", () => {
+      const { analysis } = juniorRun.json;
+      if (analysis.matchScore < 70 || analysis.edits.length < 4) {
+        expect(analysis.editNote.length).toBeGreaterThan(20);
+        expect(lower(analysis.editNote)).toMatch(/senior|experience|level|wording|reword/);
       }
     });
   });
@@ -184,6 +310,12 @@ live("POST /api/resume-analysis against the real Gemini API", () => {
       expect(analysis.matchScore).toBeLessThanOrEqual(30);
       expect(analysis.gaps.length).toBeGreaterThanOrEqual(2);
       expect(lower(analysis.missingKeywords)).toMatch(/ahpra|registered nurse|nursing|nmba|bls/);
+    });
+
+    test("suggests no rewording that would turn a game developer into a nurse", () => {
+      for (const edit of mismatchRun.json.analysis.edits) {
+        expect(lower(edit.after)).not.toMatch(/ahpra|registered nurse|bachelor of nursing|wound care|patient care|\bbls\b/);
+      }
     });
 
     test("does not turn a game developer into a nurse", () => {
