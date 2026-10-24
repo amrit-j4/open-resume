@@ -12,6 +12,12 @@ const config = {
   // setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
 
   testEnvironment: "jest-environment-jsdom",
+
+  // tsconfig's catch-all path ("*": ["*"]) is what lets tests import "lib/..." , but it also makes the compiler rewrite packages that
+  // aren't in src/app into relative paths ("../../mammoth"). Point those back at the packages.
+  moduleNameMapper: {
+    "^(?:\\.\\./)+(mammoth|jszip|next/.*|react|react/.*|@[^/]+/.*)$": "$1",
+  },
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
