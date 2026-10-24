@@ -1,8 +1,6 @@
+import { generateJson, AiRequestError, type GeminiPart } from "lib/ai/gemini";
 import { normalizeResume } from "lib/resume-import/normalize";
 import type { Resume } from "lib/redux/types";
-
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
-const DEFAULT_MODEL = "gemini-2.5-flash";
 
 const PROMPT = `You turn a resume into JSON for a resume builder.
 
@@ -25,68 +23,23 @@ The JSON shape:
  "skills":{"featuredSkills":[{"skill":"","rating":4}],"descriptions":[""]},
  "custom":{"descriptions":[""]}}`;
 
-export class ResumeImportError extends Error {
-  constructor(
-    message: string,
-    public status: number
-  ) {
-    super(message);
-  }
-}
+// The import and the analysis share one error type, so the routes can treat both the same way.
+export { AiRequestError as ResumeImportError };
 
 type ResumeSource =
   | { kind: "pdf"; data: Buffer }
   | { kind: "text"; text: string };
 
-interface GeminiResponse {
-  candidates?: { content?: { parts?: { text?: string }[] } }[];
-}
-
 /** Asks Gemini to read the resume (a PDF goes in as is, so scans work too; Word text goes in as text) and returns it in the builder's shape. */
 export const extractResumeWithAi = async (source: ResumeSource): Promise<Resume> => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new ResumeImportError("Resume import isn't set up yet.", 503);
-  }
-  const model = process.env.GEMINI_GENERATION_MODEL || DEFAULT_MODEL;
-
-  const resumePart =
+  const resumePart: GeminiPart =
     source.kind === "pdf"
       ? { inline_data: { mime_type: "application/pdf", data: source.data.toString("base64") } }
       : { text: `<resume>\n${source.text}\n</resume>` };
 
-  const res = await fetch(`${GEMINI_ENDPOINT}/${model}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: PROMPT }, resumePart] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0 },
-    }),
-    cache: "no-store",
+  const answer = await generateJson([{ text: PROMPT }, resumePart], {
+    failureMessage: "We couldn't read this resume right now. Please try again.",
+    unreadableMessage: "We couldn't read this resume. Try another file.",
   });
-
-  if (!res.ok) {
-    console.error("Gemini rejected the resume import request", res.status, await res.text());
-    throw new ResumeImportError("We couldn't read this resume right now. Please try again.", 502);
-  }
-
-  const data = (await res.json()) as GeminiResponse;
-  const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!answer) {
-    throw new ResumeImportError("We couldn't read this resume. Try another file.", 422);
-  }
-
-  try {
-    return normalizeResume(JSON.parse(stripFences(answer)));
-  } catch {
-    throw new ResumeImportError("We couldn't read this resume. Try another file.", 422);
-  }
-};
-
-/** Models sometimes wrap JSON in a ```json fence despite being asked not to. */
-const stripFences = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed.startsWith("```")) return trimmed;
-  const afterFence = trimmed.slice(trimmed.indexOf("\n") + 1);
-  return (afterFence.endsWith("```") ? afterFence.slice(0, -3) : afterFence).trim();
+  return normalizeResume(answer);
 };

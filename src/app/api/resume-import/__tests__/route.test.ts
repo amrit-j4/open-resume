@@ -124,12 +124,12 @@ describe("POST /api/resume-import", () => {
   });
 
   test("passes on the status and message of a model failure", async () => {
-    extract.mockRejectedValue(new ResumeImportError("Resume import isn't set up yet.", 503));
+    extract.mockRejectedValue(new ResumeImportError("This feature isn't set up yet.", 503));
 
     const res = await POST(upload("%PDF-1.7 data"));
 
     expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ error: "Resume import isn't set up yet." });
+    expect(await res.json()).toEqual({ error: "This feature isn't set up yet." });
   });
 
   test("answers 422 without leaking details for an unexpected failure", async () => {
