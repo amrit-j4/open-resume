@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { INPUT_CLASS_NAME } from "components/ResumeForm/Form/InputGroup";
+import { DEFAULT_THEME_COLOR } from "lib/redux/settingsSlice";
 
 export const FeaturedSkillInput = ({
   skill,
@@ -37,7 +38,7 @@ export const FeaturedSkillInput = ({
 const CircleRating = ({
   rating,
   setRating,
-  circleColor = "#38bdf8",
+  circleColor = DEFAULT_THEME_COLOR,
 }: {
   rating: number;
   setRating: (rating: number) => void;

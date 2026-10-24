@@ -11,6 +11,7 @@ import {
   selectShowBulletPoints,
   changeShowBulletPoints,
   selectThemeColor,
+  DEFAULT_THEME_COLOR,
 } from "lib/redux/settingsSlice";
 
 export const SkillsForm = () => {
@@ -19,7 +20,7 @@ export const SkillsForm = () => {
   const { featuredSkills, descriptions } = skills;
   const form = "skills";
   const showBulletPoints = useAppSelector(selectShowBulletPoints(form));
-  const themeColor = useAppSelector(selectThemeColor) || "#38bdf8";
+  const themeColor = useAppSelector(selectThemeColor) || DEFAULT_THEME_COLOR;
 
   const handleSkillsChange = (field: "descriptions", value: string[]) => {
     dispatch(changeSkills({ field, value }));

@@ -1,4 +1,5 @@
 export const THEME_COLORS = [
+  "#0d3880", // Job4Online primary
   "#f87171", // Red-400
   "#ef4444", // Red-500
   "#fb923c", // Orange-400
