@@ -7,6 +7,16 @@ import { initialSettings, type Settings } from "lib/redux/settingsSlice";
 import { loadBuilderResume } from "lib/redux/tailor-state";
 import type { Resume } from "lib/redux/types";
 import type { ResumeAnalysisResult } from "lib/resume-analysis/types";
+import {
+  analysisSignature,
+  fileSignature,
+  loadSavedAnalysis,
+  readFileForSaving,
+  restoreFile,
+  saveAnalysis,
+  type SavedAnalysis,
+  type SavedWork,
+} from "lib/resume-analysis/saved-analysis";
 import { SIGN_IN_URL, SIGN_UP_URL, SITE_NAME } from "lib/site-config";
 import { ResumeFilePicker } from "components/ResumeFilePicker";
 import { AnalysisWorkspace } from "resume-analysis/AnalysisWorkspace";
@@ -87,6 +97,11 @@ export default function ResumeAnalysisPage() {
   const [showResults, setShowResults] = useState(false);
   const [previewSettings, setPreviewSettings] = useState<Settings>(initialSettings);
 
+  // What is kept in this browser. Written when an analysis comes back, and updated as the suggestions are worked through.
+  const savedRef = useRef<SavedAnalysis | undefined>();
+  const [work, setWork] = useState<SavedWork | undefined>();
+  const workTimer = useRef<ReturnType<typeof setTimeout>>();
+
   const abortRef = useRef<AbortController | null>(null);
   const reportHeadingRef = useRef<HTMLHeadingElement>(null);
 
@@ -94,7 +109,25 @@ export default function ResumeAnalysisPage() {
     const saved = loadBuilderResume();
     setBuilderResume(saved);
     if (saved) setSource("builder");
-    return () => abortRef.current?.abort();
+
+    // Pick up the last analysis, so a reload lands back on it.
+    const kept = loadSavedAnalysis();
+    if (kept) {
+      savedRef.current = kept;
+      setSource(kept.source === "builder" && !saved ? "upload" : kept.source);
+      setJobInput(kept.jobInput);
+      setJobText(kept.jobText);
+      setJobUrl(kept.jobUrl);
+      if (kept.file) setFile(restoreFile(kept.file) ?? null);
+      setResult(kept.result);
+      setPreviewSettings(kept.settings);
+      setWork(kept.work);
+      setShowResults(true);
+    }
+    return () => {
+      abortRef.current?.abort();
+      clearTimeout(workTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -117,6 +150,23 @@ export default function ResumeAnalysisPage() {
     return found;
   };
 
+  /** What the resume and job are, as a string, so the same inputs can be recognised. */
+  const currentSignature = () =>
+    analysisSignature({
+      source,
+      resume: source === "upload" && file ? fileSignature(file) : JSON.stringify(builderResume ?? null),
+      jobInput,
+      job: jobInput === "text" ? jobText.trim() : jobUrl.trim(),
+    });
+
+  /** Keeps the working state (accepted suggestions and edits), a moment after the last change, as typing changes it constantly. */
+  const rememberWork = (next: SavedWork) => {
+    if (!savedRef.current) return;
+    savedRef.current = { ...savedRef.current, work: next };
+    clearTimeout(workTimer.current);
+    workTimer.current = setTimeout(() => savedRef.current && saveAnalysis(savedRef.current), 400);
+  };
+
   const analyse = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (analysing) return;
@@ -125,6 +175,17 @@ export default function ResumeAnalysisPage() {
     setErrors(found);
     setServerError(null);
     if (found.resume || found.job) return;
+
+    // The same resume and job as the saved analysis: reuse it, rather than paying for the AI to do it again.
+    const signature = currentSignature();
+    const kept = savedRef.current;
+    if (kept && kept.signature === signature) {
+      setResult(kept.result);
+      setPreviewSettings(kept.settings);
+      setWork(kept.work);
+      setShowResults(true);
+      return;
+    }
 
     setStatus("analysing");
     const controller = new AbortController();
@@ -156,7 +217,21 @@ export default function ResumeAnalysisPage() {
 
       setResult(data as ResumeAnalysisResult);
       // The preview uses the template, colours and fonts the person already chose in the builder.
-      setPreviewSettings((loadStateFromLocalStorage()?.settings as Settings | undefined) ?? initialSettings);
+      const settings = (loadStateFromLocalStorage()?.settings as Settings | undefined) ?? initialSettings;
+      setPreviewSettings(settings);
+      setWork(undefined);
+      savedRef.current = {
+        version: 1,
+        signature,
+        source,
+        jobInput,
+        jobText,
+        jobUrl,
+        file: source === "upload" && file ? await readFileForSaving(file) : undefined,
+        result: data as ResumeAnalysisResult,
+        settings,
+      };
+      saveAnalysis(savedRef.current);
       setShowResults(true);
       setStatus("idle");
     } catch (error) {
@@ -181,7 +256,7 @@ export default function ResumeAnalysisPage() {
   if (showResults && result) {
     return (
       <main>
-        <AnalysisWorkspace result={result} settings={previewSettings} onBack={() => setShowResults(false)} headingRef={reportHeadingRef} />
+        <AnalysisWorkspace result={result} settings={previewSettings} initialWork={work} onWork={rememberWork} onBack={() => setShowResults(false)} headingRef={reportHeadingRef} />
       </main>
     );
   }

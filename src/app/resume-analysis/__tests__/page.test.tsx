@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import ResumeAnalysisPage from "../page";
 import { matchBand } from "../AnalysisReport";
 import { getAccessToken } from "../../lib/auth-gate";
@@ -839,13 +839,46 @@ describe("the workspace", () => {
       accept(SUMMARY_REASON);
       fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
 
+      paste(`${JOB_DESCRIPTION} Also: a different job, so this is a new analysis.`);
       fetchMock.mockResolvedValue(ok(result()));
       fireEvent.click(analyseButton());
       await screen.findByRole("heading", { name: "Your Resume Analysis" });
       fireEvent.click(screen.getByRole("tab", { name: "Edit Resume" }));
 
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(count()).toBe("3 to review, 0 accepted, 0 dismissed");
       expect(objective()).toHaveValue(RESUME.profile.summary);
+    });
+
+    test("analysing the same resume and job again reuses the saved result, and keeps what was accepted", async () => {
+      await analyse();
+      accept(SUMMARY_REASON);
+      fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
+
+      fireEvent.click(analyseButton());
+      await screen.findByRole("heading", { name: "Your Resume Analysis" });
+      fireEvent.click(screen.getByRole("tab", { name: "Edit Resume" }));
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(count()).toBe("2 to review, 1 accepted, 0 dismissed");
+    });
+
+    test("a reload brings back the analysis, the job and the resume file without another AI call", async () => {
+      await analyse();
+      accept(SUMMARY_REASON);
+      await new Promise((resolve) => setTimeout(resolve, 500)); // the working state is saved a moment after the last change
+      cleanup();
+
+      render(<ResumeAnalysisPage />);
+
+      expect(await screen.findByRole("heading", { name: "Your Resume Analysis" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Report" })).toHaveAttribute("aria-selected", "true");
+      fireEvent.click(screen.getByRole("tab", { name: "Edit Resume" }));
+      expect(count()).toBe("2 to review, 1 accepted, 0 dismissed");
+      fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
+      expect(screen.getByLabelText("Job description")).toHaveValue(JOB_DESCRIPTION);
+      expect(screen.getByText("resume.pdf")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 });

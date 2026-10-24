@@ -29,6 +29,7 @@ import { SkillsForm } from "components/ResumeForm/SkillsForm";
 import { CustomForm } from "components/ResumeForm/CustomForm";
 import { SuggestionsContext, type FieldSuggestion, type SuggestionState, type SuggestionsApi } from "components/ResumeForm/Form/suggestions-context";
 import { AnalysisReport, matchBand } from "resume-analysis/AnalysisReport";
+import type { SavedWork } from "lib/resume-analysis/saved-analysis";
 import { ResumeLivePreview } from "resume-analysis/ResumeLivePreview";
 
 const primary = "bg-primary rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50";
@@ -61,10 +62,14 @@ const PreviewFromStore = () => {
 
 const Workspace = ({
   result,
+  initialWork,
+  onWork,
   onBack,
   headingRef,
 }: {
   result: ResumeAnalysisResult;
+  initialWork?: SavedWork;
+  onWork?: (work: SavedWork) => void;
   onBack: () => void;
   headingRef: React.RefObject<HTMLHeadingElement>;
 }) => {
@@ -77,13 +82,18 @@ const Workspace = ({
   const byId = useMemo(() => new Map(suggestions.map((s) => [s.edit.id, s])), [suggestions]);
 
   // Accepting many suggestions in one go has to see each one's effect on the next, so what has been accepted lives in a ref, updated at once.
-  const book = useRef<Book>({ states: {}, rewrites: {} });
+  const book = useRef<Book>({ states: initialWork?.states ?? {}, rewrites: (initialWork?.rewrites as Rewrites | undefined) ?? {} });
   const [, rerender] = useReducer((n: number) => n + 1, 0);
 
   const [tab, setTab] = useState<Tab>("report");
   const [confirming, setConfirming] = useState(false);
   const [applied, setApplied] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
+
+  // Hands the page what has been done so far, so it can be kept across a reload. Runs on every render, and the page does the throttling.
+  useEffect(() => {
+    onWork?.({ resume, states: book.current.states, rewrites: book.current.rewrites });
+  });
 
   // Anything done to the resume after it was loaded into the builder means the builder no longer has what is shown.
   useEffect(() => {
@@ -328,18 +338,22 @@ const Workspace = ({
 export const AnalysisWorkspace = ({
   result,
   settings,
+  initialWork,
+  onWork,
   onBack,
   headingRef,
 }: {
   result: ResumeAnalysisResult;
   settings: Settings;
+  initialWork?: SavedWork;
+  onWork?: (work: SavedWork) => void;
   onBack: () => void;
   headingRef: React.RefObject<HTMLHeadingElement>;
 }) => {
-  const store = useMemo(() => makeStore({ resume: result.resume, settings }), [result, settings]);
+  const store = useMemo(() => makeStore({ resume: initialWork?.resume ?? result.resume, settings }), [result, settings, initialWork]);
   return (
     <Provider store={store}>
-      <Workspace result={result} onBack={onBack} headingRef={headingRef} />
+      <Workspace result={result} initialWork={initialWork} onWork={onWork} onBack={onBack} headingRef={headingRef} />
     </Provider>
   );
 };
