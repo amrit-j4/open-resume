@@ -868,6 +868,13 @@ describe("the workspace", () => {
       fireEvent.click(screen.getByRole("button", { name: /change resume or job/i }));
 
       fireEvent.click(screen.getByRole("button", { name: "Start a new analysis" }));
+      // Nothing is lost until it is confirmed.
+      expect(screen.getByRole("dialog", { name: "Start a new analysis?" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.getByLabelText("Job description")).toHaveValue(JOB_DESCRIPTION);
+
+      fireEvent.click(screen.getByRole("button", { name: "Start a new analysis" }));
+      fireEvent.click(screen.getByRole("button", { name: "Start new analysis" }));
 
       expect(screen.getByLabelText("Job description")).toHaveValue("");
       expect(screen.queryByText("resume.pdf")).not.toBeInTheDocument();

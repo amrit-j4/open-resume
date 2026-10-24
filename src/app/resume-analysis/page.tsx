@@ -74,6 +74,29 @@ const RadioCard = ({
   </label>
 );
 
+/** Asks before the saved analysis is thrown away, since running it again costs time and an AI call. */
+const StartOverModal = ({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" role="dialog" aria-modal="true" aria-labelledby="start-over-title">
+    <div className="w-full max-w-md rounded-xl bg-white p-6 text-gray-900 shadow-xl">
+      <h2 id="start-over-title" className="text-xl font-semibold">
+        Start a new analysis?
+      </h2>
+      <p className="mt-2 text-sm text-gray-600">
+        This deletes your saved analysis, your accepted suggestions and any edits you made here, and empties the form. Analysing the same
+        resume and job again will take a new AI run.
+      </p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100">
+          Cancel
+        </button>
+        <button type="button" onClick={onConfirm} className="btn-primary">
+          Start new analysis
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const Spinner = () => (
   <svg className="h-4 w-4 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
@@ -169,7 +192,9 @@ export default function ResumeAnalysisPage() {
   };
 
   /** Forgets the saved analysis and empties the form, ready for a different resume or job. */
+  const [confirmingStartOver, setConfirmingStartOver] = useState(false);
   const startOver = () => {
+    setConfirmingStartOver(false);
     clearTimeout(workTimer.current);
     clearSavedAnalysis();
     savedRef.current = undefined;
@@ -275,13 +300,15 @@ export default function ResumeAnalysisPage() {
   if (showResults && result) {
     return (
       <main>
-        <AnalysisWorkspace result={result} settings={previewSettings} initialWork={work} onWork={rememberWork} onBack={() => setShowResults(false)} onStartOver={startOver} headingRef={reportHeadingRef} />
+        {confirmingStartOver && <StartOverModal onConfirm={startOver} onClose={() => setConfirmingStartOver(false)} />}
+        <AnalysisWorkspace result={result} settings={previewSettings} initialWork={work} onWork={rememberWork} onBack={() => setShowResults(false)} onStartOver={() => setConfirmingStartOver(true)} headingRef={reportHeadingRef} />
       </main>
     );
   }
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
+      {confirmingStartOver && <StartOverModal onConfirm={startOver} onClose={() => setConfirmingStartOver(false)} />}
       <h1 className="text-balance text-center text-2xl font-semibold text-gray-900">Resume Analysis</h1>
       <p className="mx-auto mt-2 max-w-lg text-pretty text-center text-sm text-gray-600">
         Compare your resume with a job. Get a match score, the keywords you&rsquo;re missing, and a version of your resume reworded for that job.
@@ -290,7 +317,7 @@ export default function ResumeAnalysisPage() {
       {result && (
         <p className="mt-6 text-center text-sm text-gray-600">
           Your last analysis is saved in this browser, so analysing the same resume and job again is instant.{" "}
-          <button type="button" onClick={startOver} disabled={analysing} className="font-medium text-gray-900 underline hover:no-underline disabled:opacity-50">
+          <button type="button" onClick={() => setConfirmingStartOver(true)} disabled={analysing} className="font-medium text-gray-900 underline hover:no-underline disabled:opacity-50">
             Start a new analysis
           </button>
         </p>
