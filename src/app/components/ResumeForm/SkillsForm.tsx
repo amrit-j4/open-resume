@@ -1,4 +1,5 @@
 import { Form } from "components/ResumeForm/Form";
+import { FieldSuggestions } from "components/ResumeForm/Form/FieldSuggestions";
 import {
   BulletListTextarea,
   InputGroupWrapper,
@@ -56,6 +57,7 @@ export const SkillsForm = () => {
             />
           </div>
         </div>
+        <FieldSuggestions section="skills" />
         <div className="col-span-full mb-4 mt-6 border-t-2 border-dotted border-gray-200" />
         <InputGroupWrapper
           label="Featured Skills (Optional)"

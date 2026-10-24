@@ -1,4 +1,5 @@
 import { Form, FormSection } from "components/ResumeForm/Form";
+import { FieldSuggestions } from "components/ResumeForm/Form/FieldSuggestions";
 import {
   Input,
   BulletListTextarea,
@@ -76,6 +77,7 @@ export const WorkExperiencesForm = () => {
               value={descriptions}
               onChange={handleWorkExperienceChange}
             />
+            <FieldSuggestions section="workExperiences" entryIndex={idx} />
           </FormSection>
         );
       })}

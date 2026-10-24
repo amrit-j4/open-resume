@@ -18,7 +18,7 @@ const config = {
   moduleNameMapper: {
     // Node built-ins can't be pointed at by name (the mapper would treat "dns" as a file), so they go through tiny shims.
     "^(?:\\.\\./)+(dns|http|https)$": "<rootDir>/jest/builtins/$1.cjs",
-    "^(?:\\.\\./)+(mammoth|jszip|next/.*|react|react/.*|@[^/]+/.*)$": "$1",
+    "^(?:\\.\\./)+(mammoth|jszip|next/.*|react|react/.*|react-[\\w-]+(?:/.*)?|@[^/]+/.*)$": "$1",
   },
 };
 

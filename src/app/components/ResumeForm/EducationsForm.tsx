@@ -1,4 +1,5 @@
 import { Form, FormSection } from "components/ResumeForm/Form";
+import { FieldSuggestions } from "components/ResumeForm/Form/FieldSuggestions";
 import {
   BulletListTextarea,
   Input,
@@ -98,6 +99,7 @@ export const EducationsForm = () => {
                 />
               </div>
             </div>
+            <FieldSuggestions section="educations" entryIndex={idx} />
           </FormSection>
         );
       })}

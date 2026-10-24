@@ -1,6 +1,5 @@
 import { cx } from "lib/cx";
 import type { ResumeAnalysis } from "lib/resume-analysis/types";
-import { EditCard, type Decision } from "resume-analysis/EditCard";
 
 const IMPORTANCE_LABELS = { high: "High priority", medium: "Medium priority", low: "Low priority" } as const;
 
@@ -98,141 +97,72 @@ const ScoreBreakdown = ({ items }: { items: ResumeAnalysis["breakdown"] }) => (
 const ghostButton =
   "rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900";
 
-/** The report: the verdict and score, the suggestions to accept or reject, the keywords, and what is strong and weak. */
-export const AnalysisReport = ({
-  analysis,
-  decisions,
-  onDecide,
-  onAcceptAll,
-  onRejectAll,
-  onReset,
-  headingRef,
-}: {
-  analysis: ResumeAnalysis;
-  decisions: Record<string, Decision>;
-  onDecide: (id: string, decision: Decision | undefined) => void;
-  onAcceptAll: () => void;
-  onRejectAll: () => void;
-  onReset: () => void;
-  headingRef: React.RefObject<HTMLHeadingElement>;
-}) => {
-  const jobName = [analysis.job.title, analysis.job.company].filter(Boolean).join(" at ");
-  const accepted = analysis.edits.filter((edit) => decisions[edit.id] === "accepted").length;
-  const rejected = analysis.edits.filter((edit) => decisions[edit.id] === "rejected").length;
-
-  return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-5 rounded-xl border border-gray-200 p-5 sm:flex-row sm:items-center">
-        <ScoreRing score={analysis.matchScore} />
-        <div className="min-w-0">
-          <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900 outline-none">
-            Your Resume Analysis
-          </h2>
-          {jobName && <p className="mt-1 text-sm text-gray-500">For {jobName}</p>}
-          {analysis.verdict && <p className="mt-3 text-pretty text-sm text-gray-700">{analysis.verdict}</p>}
-        </div>
-      </section>
-
-      {analysis.breakdown.length > 0 && <ScoreBreakdown items={analysis.breakdown} />}
-
-      <Card title="Suggested Changes">
-        {analysis.editNote && (
-          <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-950" data-testid="edit-note">
-            {analysis.editNote}
-          </p>
-        )}
-        {analysis.edits.length === 0 ? (
-          <p className="text-sm text-gray-500">No wording changes are suggested. Your resume already reads well for this job.</p>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-gray-600" aria-live="polite" data-testid="decision-count">
-                <span className="tabular-nums">
-                  {accepted} of {analysis.edits.length}
-                </span>{" "}
-                accepted
-                {rejected > 0 && (
-                  <>
-                    , <span className="tabular-nums">{rejected}</span> rejected
-                  </>
-                )}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={onAcceptAll} className={ghostButton}>
-                  Accept All
-                </button>
-                <button type="button" onClick={onRejectAll} className={ghostButton}>
-                  Reject All
-                </button>
-                <button type="button" onClick={onReset} disabled={accepted + rejected === 0} className={cx(ghostButton, "disabled:opacity-50")}>
-                  Reset
-                </button>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">The preview shows your resume with the accepted changes.</p>
-            <ol className="mt-4 space-y-3">
-              {analysis.edits.map((edit, index) => (
-                <EditCard key={edit.id} edit={edit} number={index + 1} decision={decisions[edit.id]} onDecide={(decision) => onDecide(edit.id, decision)} />
-              ))}
-            </ol>
-          </>
-        )}
-      </Card>
-
-      <Card title="Keywords">
-        <h4 className="text-sm font-medium text-gray-900">
-          Already in your resume <span className="tabular-nums text-gray-500">({analysis.matchedKeywords.length})</span>
-        </h4>
-        {analysis.matchedKeywords.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">None of the job&rsquo;s keywords were found.</p>
-        ) : (
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {analysis.matchedKeywords.map((keyword) => (
-              <li key={keyword} className="rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-900">
-                {keyword}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <h4 className="mt-6 text-sm font-medium text-gray-900">
-          Missing from your resume <span className="tabular-nums text-gray-500">({analysis.missingKeywords.length})</span>
-        </h4>
-        <p className="mt-1 text-xs text-gray-500">Add one only if it&rsquo;s true. We never add these to your resume for you.</p>
-        {analysis.missingKeywords.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">Nothing important is missing.</p>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {analysis.missingKeywords.map((entry) => (
-              <li key={entry.keyword} className="rounded-lg border border-gray-200 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">{entry.keyword}</span>
-                  <span
-                    className={cx(
-                      "rounded px-1.5 py-0.5 text-xs",
-                      entry.importance === "high" && "bg-red-50 text-red-800",
-                      entry.importance === "medium" && "bg-amber-50 text-amber-800",
-                      entry.importance === "low" && "bg-gray-100 text-gray-700"
-                    )}
-                  >
-                    {IMPORTANCE_LABELS[entry.importance]}
-                  </span>
-                </div>
-                {entry.advice && <p className="mt-1 text-sm text-gray-600">{entry.advice}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="Strengths">
-          <BulletList items={analysis.strengths} empty="No clear strengths for this job were found." />
-        </Card>
-        <Card title="Gaps">
-          <BulletList items={analysis.gaps} empty="No major gaps found." />
-        </Card>
+/** The report: the verdict and score, where the score comes from, the keywords, and what is strong and weak. The suggestions are in the resume itself. */
+export const AnalysisReport = ({ analysis }: { analysis: ResumeAnalysis }) => (
+  <div className="space-y-5">
+    <section className="flex flex-col gap-5 rounded-xl border border-gray-200 p-5 sm:flex-row sm:items-center">
+      <ScoreRing score={analysis.matchScore} />
+      <div className="min-w-0">
+        <h3 className="text-base font-semibold text-gray-900">How Well Your Resume Fits</h3>
+        {analysis.verdict && <p className="mt-2 text-pretty text-sm text-gray-700">{analysis.verdict}</p>}
       </div>
+    </section>
+
+    {analysis.breakdown.length > 0 && <ScoreBreakdown items={analysis.breakdown} />}
+
+    <Card title="Keywords">
+      <h4 className="text-sm font-medium text-gray-900">
+        Already in your resume <span className="tabular-nums text-gray-500">({analysis.matchedKeywords.length})</span>
+      </h4>
+      {analysis.matchedKeywords.length === 0 ? (
+        <p className="mt-2 text-sm text-gray-500">None of the job&rsquo;s keywords were found.</p>
+      ) : (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {analysis.matchedKeywords.map((keyword) => (
+            <li key={keyword} className="rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-900">
+              {keyword}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h4 className="mt-6 text-sm font-medium text-gray-900">
+        Missing from your resume <span className="tabular-nums text-gray-500">({analysis.missingKeywords.length})</span>
+      </h4>
+      <p className="mt-1 text-xs text-gray-500">Add one only if it&rsquo;s true. We never add these to your resume for you.</p>
+      {analysis.missingKeywords.length === 0 ? (
+        <p className="mt-2 text-sm text-gray-500">Nothing important is missing.</p>
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {analysis.missingKeywords.map((entry) => (
+            <li key={entry.keyword} className="rounded-lg border border-gray-200 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-gray-900">{entry.keyword}</span>
+                <span
+                  className={cx(
+                    "rounded px-1.5 py-0.5 text-xs",
+                    entry.importance === "high" && "bg-red-50 text-red-800",
+                    entry.importance === "medium" && "bg-amber-50 text-amber-800",
+                    entry.importance === "low" && "bg-gray-100 text-gray-700"
+                  )}
+                >
+                  {IMPORTANCE_LABELS[entry.importance]}
+                </span>
+              </div>
+              {entry.advice && <p className="mt-1 text-sm text-gray-600">{entry.advice}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+
+    <div className="grid gap-5 xl:grid-cols-2">
+      <Card title="Strengths">
+        <BulletList items={analysis.strengths} empty="No clear strengths for this job were found." />
+      </Card>
+      <Card title="Gaps">
+        <BulletList items={analysis.gaps} empty="No major gaps found." />
+      </Card>
     </div>
-  );
-};
+  </div>
+);

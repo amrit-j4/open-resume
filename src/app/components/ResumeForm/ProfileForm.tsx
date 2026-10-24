@@ -1,4 +1,5 @@
 import { BaseForm } from "components/ResumeForm/Form";
+import { FieldSuggestions } from "components/ResumeForm/Form/FieldSuggestions";
 import { Input, Textarea } from "components/ResumeForm/Form/InputGroup";
 import { useAppDispatch, useAppSelector } from "lib/redux/hooks";
 import { changeProfile, selectProfile } from "lib/redux/resumeSlice";
@@ -32,6 +33,7 @@ export const ProfileForm = () => {
           value={summary}
           onChange={handleProfileChange}
         />
+        <FieldSuggestions section="summary" />
         <Input
           label="Email"
           labelClassName="col-span-4"

@@ -1,4 +1,5 @@
 import { Form, FormSection } from "components/ResumeForm/Form";
+import { FieldSuggestions } from "components/ResumeForm/Form/FieldSuggestions";
 import {
   Input,
   BulletListTextarea,
@@ -61,6 +62,7 @@ export const ProjectsForm = () => {
               onChange={handleProjectChange}
               labelClassName="col-span-full"
             />
+            <FieldSuggestions section="projects" entryIndex={idx} />
           </FormSection>
         );
       })}
