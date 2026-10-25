@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AiRequestError } from "lib/ai/gemini";
-import { isAuthorized } from "lib/resume-import/authorize";
+import { authorize } from "lib/resume-import/authorize";
+import { startUsage } from "lib/resume-import/usage-limit";
 import { normalizeResume } from "lib/resume-import/normalize";
 import { readResumeFile } from "lib/resume-import/read-resume-file";
 import { analyzeResumeWithAi } from "lib/resume-analysis/analyze-with-ai";
@@ -15,6 +16,9 @@ const MIN_JOB_TEXT_LENGTH = 80;
 const MAX_RESUME_JSON_LENGTH = 200_000;
 
 const fail = (message: string, status: number) => NextResponse.json({ error: message }, { status });
+
+const tooManyRequests = ({ message, retryAfterSeconds }: { message: string; retryAfterSeconds: number }) =>
+  NextResponse.json({ error: message }, { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } });
 
 const hasContent = (resume: Resume) =>
   Boolean(resume.profile.name || resume.workExperiences.length || resume.educations.length || resume.projects.length || resume.skills.featuredSkills.length);
@@ -84,7 +88,8 @@ const jobFrom = async (form: FormData): Promise<{ text: string; source: "text" |
  * the resume as read, and the same resume reworded for the job. Nothing is stored.
  */
 export async function POST(req: Request) {
-  if (!(await isAuthorized(req))) {
+  const caller = await authorize(req);
+  if (!caller) {
     return fail("Sign in to analyse a resume.", 401);
   }
 
@@ -95,6 +100,11 @@ export async function POST(req: Request) {
     return fail("Send the resume and the job as a form.", 400);
   }
 
+  // Each analysis costs an AI call: limit how many one person can run, and how many at once.
+  const usage = startUsage(caller, "analysis");
+  if (!usage.allowed) return tooManyRequests(usage);
+
+  let refund = false;
   try {
     // The job comes first: it is quick, and a bad link shouldn't cost an AI call on the resume.
     const job = await jobFrom(form);
@@ -102,8 +112,12 @@ export async function POST(req: Request) {
     const result = await analyzeResumeWithAi(resume, job.text);
     return NextResponse.json({ ...result, job: { source: job.source, url: job.url } });
   } catch (error) {
+    // A failure on our side or the model's isn't the person's fault, so it doesn't use up their allowance.
+    refund = !(error instanceof AiRequestError) || error.status >= 500;
     if (error instanceof AiRequestError) return fail(error.message, error.status);
     console.error("Resume analysis failed", error);
     return fail("We couldn't analyse this resume. Please try again.", 500);
+  } finally {
+    usage.done({ refund });
   }
 }

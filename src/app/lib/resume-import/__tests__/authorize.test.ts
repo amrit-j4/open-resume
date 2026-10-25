@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { isAuthorized } from "lib/resume-import/authorize";
+import { authorize, isAuthorized } from "lib/resume-import/authorize";
 
 const fetchMock = jest.fn();
 const originalEnv = process.env;
@@ -50,6 +50,26 @@ describe("isAuthorized", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/auth\/me$/);
     expect(init.headers).toEqual({ Authorization: "Bearer good-token" });
+  });
+
+  test("identifies a signed-in user by the id the API gives", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ id: "user-42" }) });
+
+    expect(await authorize(request({ authorization: "Bearer good-token" }))).toEqual({ kind: "user", id: "user-42" });
+  });
+
+  test("falls back to telling users apart by token when the API sends no id", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const first = await authorize(request({ authorization: "Bearer token-a" }));
+    const second = await authorize(request({ authorization: "Bearer token-b" }));
+
+    expect(first).toMatchObject({ kind: "user" });
+    expect(first).not.toEqual(second);
+  });
+
+  test("identifies a shared-secret caller as trusted", async () => {
+    expect(await authorize(request({ "x-api-key": "s3cret" }))).toEqual({ kind: "key" });
   });
 
   test("rejects a bearer token the API refuses", async () => {

@@ -3,16 +3,17 @@
  */
 import JSZip from "jszip";
 import { POST } from "../route";
-import { isAuthorized } from "lib/resume-import/authorize";
+import { authorize } from "lib/resume-import/authorize";
+import { resetUsage } from "lib/resume-import/usage-limit";
 import { extractResumeWithAi, ResumeImportError } from "lib/resume-import/extract-with-ai";
 
-jest.mock("../../../lib/resume-import/authorize", () => ({ isAuthorized: jest.fn() }));
+jest.mock("../../../lib/resume-import/authorize", () => ({ authorize: jest.fn() }));
 jest.mock("../../../lib/resume-import/extract-with-ai", () => {
   const actual = jest.requireActual("../../../lib/resume-import/extract-with-ai");
   return { ...actual, extractResumeWithAi: jest.fn() };
 });
 
-const authorized = isAuthorized as jest.Mock;
+const authorized = authorize as jest.Mock;
 const extract = extractResumeWithAi as jest.Mock;
 
 const RESUME = { profile: { name: "Alex Morgan" } };
@@ -41,7 +42,8 @@ const makeDocx = async (paragraph: string) => {
 };
 
 beforeEach(() => {
-  authorized.mockReset().mockResolvedValue(true);
+  resetUsage();
+  authorized.mockReset().mockResolvedValue({ kind: "user", id: "user-1" });
   extract.mockReset().mockResolvedValue(RESUME);
   jest.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -50,11 +52,25 @@ afterEach(() => jest.restoreAllMocks());
 
 describe("POST /api/resume-import", () => {
   test("answers 401 and reads nothing when the caller is not authorised", async () => {
-    authorized.mockResolvedValue(false);
+    authorized.mockResolvedValue(null);
 
     const res = await POST(upload("%PDF-1.7 data"));
 
     expect(res.status).toBe(401);
+    expect(extract).not.toHaveBeenCalled();
+  });
+
+  test("answers 429 with Retry-After once the daily limit is used, without calling the model", async () => {
+    process.env.RESUME_IMPORT_DAILY_LIMIT = "1";
+    expect((await POST(upload("%PDF-1.7 data"))).status).toBe(200);
+    extract.mockClear();
+
+    const res = await POST(upload("%PDF-1.7 data"));
+
+    delete process.env.RESUME_IMPORT_DAILY_LIMIT;
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect((await res.json()).error).toContain("limit of 1 resume imports");
     expect(extract).not.toHaveBeenCalled();
   });
 

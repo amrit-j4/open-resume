@@ -17,7 +17,7 @@ const config = {
   // aren't in src/app into relative paths ("../../mammoth"). Point those back at the packages.
   moduleNameMapper: {
     // Node built-ins can't be pointed at by name (the mapper would treat "dns" as a file), so they go through tiny shims.
-    "^(?:\\.\\./)+(dns|http|https)$": "<rootDir>/jest/builtins/$1.cjs",
+    "^(?:\\.\\./)+(dns|http|https|crypto)$": "<rootDir>/jest/builtins/$1.cjs",
     "^(?:\\.\\./)+(mammoth|jszip|next/.*|react|react/.*|react-[\\w-]+(?:/.*)?|@[^/]+/.*)$": "$1",
   },
 };

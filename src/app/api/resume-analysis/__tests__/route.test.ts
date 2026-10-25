@@ -3,18 +3,19 @@
  */
 import { POST } from "../route";
 import { AiRequestError } from "lib/ai/gemini";
-import { isAuthorized } from "lib/resume-import/authorize";
+import { authorize } from "lib/resume-import/authorize";
+import { resetUsage } from "lib/resume-import/usage-limit";
 import { readResumeFile } from "lib/resume-import/read-resume-file";
 import { analyzeResumeWithAi } from "lib/resume-analysis/analyze-with-ai";
 import { fetchJobPage } from "lib/resume-analysis/job-page/fetch-job-page";
 import { JOB_DESCRIPTION, RESUME } from "lib/resume-analysis/__fixtures__/analysis";
 
-jest.mock("../../../lib/resume-import/authorize", () => ({ isAuthorized: jest.fn() }));
+jest.mock("../../../lib/resume-import/authorize", () => ({ authorize: jest.fn() }));
 jest.mock("../../../lib/resume-import/read-resume-file", () => ({ readResumeFile: jest.fn() }));
 jest.mock("../../../lib/resume-analysis/analyze-with-ai", () => ({ analyzeResumeWithAi: jest.fn() }));
 jest.mock("../../../lib/resume-analysis/job-page/fetch-job-page", () => ({ fetchJobPage: jest.fn() }));
 
-const authorized = isAuthorized as jest.Mock;
+const authorized = authorize as jest.Mock;
 const readFile = readResumeFile as jest.Mock;
 const analyze = analyzeResumeWithAi as jest.Mock;
 const fetchPage = fetchJobPage as jest.Mock;
@@ -36,7 +37,8 @@ const jobPage = (description: string) =>
   `<html><head><title>Job</title></head><body><h1>Senior Data Analyst</h1><p>${description}</p></body></html>`;
 
 beforeEach(() => {
-  authorized.mockReset().mockResolvedValue(true);
+  resetUsage();
+  authorized.mockReset().mockResolvedValue({ kind: "user", id: "user-1" });
   readFile.mockReset().mockResolvedValue(RESUME);
   analyze.mockReset().mockResolvedValue(RESULT);
   fetchPage.mockReset();
@@ -47,13 +49,38 @@ afterEach(() => jest.restoreAllMocks());
 
 describe("POST /api/resume-analysis", () => {
   test("answers 401 and does nothing when the caller is not authorised", async () => {
-    authorized.mockResolvedValue(false);
+    authorized.mockResolvedValue(null);
 
     const res = await send({ file: pdf(), jobText: JOB_DESCRIPTION });
 
     expect(res.status).toBe(401);
     expect(readFile).not.toHaveBeenCalled();
     expect(analyze).not.toHaveBeenCalled();
+  });
+
+  test("answers 429 with Retry-After once the daily limit is used, without calling the model", async () => {
+    process.env.RESUME_ANALYSIS_DAILY_LIMIT = "1";
+    expect((await send({ file: pdf(), jobText: JOB_DESCRIPTION })).status).toBe(200);
+    analyze.mockClear();
+
+    const res = await send({ file: pdf(), jobText: JOB_DESCRIPTION });
+
+    delete process.env.RESUME_ANALYSIS_DAILY_LIMIT;
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect((await res.json()).error).toContain("limit of 1 resume analyses");
+    expect(analyze).not.toHaveBeenCalled();
+  });
+
+  test("does not use up the allowance when the model fails", async () => {
+    process.env.RESUME_ANALYSIS_DAILY_LIMIT = "1";
+    analyze.mockRejectedValueOnce(new AiRequestError("The model is down.", 502));
+
+    expect((await send({ file: pdf(), jobText: JOB_DESCRIPTION })).status).toBe(502);
+    const retry = await send({ file: pdf(), jobText: JOB_DESCRIPTION });
+
+    delete process.env.RESUME_ANALYSIS_DAILY_LIMIT;
+    expect(retry.status).toBe(200);
   });
 
   test("answers 400 when the body is not a form", async () => {
