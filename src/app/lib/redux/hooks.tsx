@@ -9,7 +9,12 @@ import {
   loadStateFromLocalStorage,
   saveStateToLocalStorage,
 } from "lib/redux/local-storage";
-import { initialResumeState, setResume } from "lib/redux/resumeSlice";
+import {
+  changeProfile,
+  initialResumeState,
+  setResume,
+} from "lib/redux/resumeSlice";
+import { fetchProfilePrefill } from "lib/profile-prefill";
 import {
   initialSettings,
   setSettings,
@@ -37,7 +42,24 @@ export const useSetInitialStore = () => {
   const dispatch = useAppDispatch();
   useEffect(() => {
     const state = loadStateFromLocalStorage();
-    if (!state) return;
+    if (!state) {
+      // First time here, nothing saved: start the resume with what the signed-in account already has. Only fields still empty when the
+      // answer arrives are filled, so anything typed in the meantime is kept.
+      let cancelled = false;
+      void fetchProfilePrefill().then((prefill) => {
+        if (cancelled || !prefill) return;
+        const current = store.getState().resume.profile;
+        for (const field of Object.keys(prefill) as (keyof typeof prefill)[]) {
+          const value = prefill[field];
+          if (value && !current[field].trim()) {
+            dispatch(changeProfile({ field, value }));
+          }
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     if (state.resume) {
       // We merge the initial state with the stored state to ensure
       // backward compatibility, since new fields might be added to

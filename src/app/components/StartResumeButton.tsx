@@ -10,6 +10,7 @@ import { initialResumeState } from "lib/redux/resumeSlice";
 import { initialSettings } from "lib/redux/settingsSlice";
 import { deepClone } from "lib/deep-clone";
 import { ConfirmModal } from "components/ConfirmModal";
+import { applyProfilePrefill, fetchProfilePrefill } from "lib/profile-prefill";
 
 type Kind = "sample" | "blank";
 
@@ -29,23 +30,34 @@ export const StartResumeButton = ({
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
 
-  const start = () => {
-    const state =
-      kind === "sample"
-        ? { resume: getSampleResume(), settings: getSampleSettings() }
-        : {
-            resume: deepClone(initialResumeState),
-            settings: deepClone(initialSettings),
-          };
-    saveStateToLocalStorage(state);
-    router.push("/resume-builder");
+  const [starting, setStarting] = useState(false);
+
+  const start = async () => {
+    setStarting(true);
+    try {
+      // A blank resume starts with whatever the signed-in account already has (name, email, phone, location, summary).
+      const state =
+        kind === "sample"
+          ? { resume: getSampleResume(), settings: getSampleSettings() }
+          : {
+              resume: applyProfilePrefill(
+                deepClone(initialResumeState),
+                await fetchProfilePrefill()
+              ),
+              settings: deepClone(initialSettings),
+            };
+      saveStateToLocalStorage(state);
+      router.push("/resume-builder");
+    } finally {
+      setStarting(false);
+    }
   };
 
   const onClick = () => {
     if (getHasUsedAppBefore()) {
       setConfirming(true);
     } else {
-      start();
+      void start();
     }
   };
 
@@ -53,7 +65,7 @@ export const StartResumeButton = ({
 
   return (
     <>
-      <button type="button" onClick={onClick} className={className}>
+      <button type="button" onClick={onClick} disabled={starting} className={className}>
         {children}
       </button>
       {confirming && (
@@ -67,7 +79,7 @@ export const StartResumeButton = ({
           }
           onConfirm={() => {
             setConfirming(false);
-            start();
+            void start();
           }}
           onCancel={onCancel}
         />
