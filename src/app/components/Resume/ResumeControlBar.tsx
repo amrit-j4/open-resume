@@ -8,7 +8,9 @@ import { getAccessToken } from "lib/auth-gate";
 import { useAppSelector } from "lib/redux/hooks";
 import { selectResume } from "lib/redux/resumeSlice";
 import { selectSettings } from "lib/redux/settingsSlice";
-import { saveResumeToAccount } from "lib/save-resume";
+import { clearEditingResume, getEditingResume, type EditingResume } from "lib/editing-resume";
+import { DASHBOARD_URL } from "lib/site-config";
+import { replaceResumeInAccount, saveResumeToAccount } from "lib/save-resume";
 import {
   MagnifyingGlassIcon,
   ArrowDownTrayIcon,
@@ -66,11 +68,15 @@ export const ResumeControlBar = ({
   const signature = JSON.stringify({ resume, settings });
   const [savedSignature, setSavedSignature] = useState<string | null>(null);
   useEffect(() => setSavedSignature(readSaved()), []);
-  const saved = savedSignature === signature;
   const [confirmingSave, setConfirmingSave] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [gateAction, setGateAction] = useState<"download" | "save" | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
+  // The account resume being edited, if the person came from "Edit" on their resumes page. Saving then replaces it instead of adding another.
+  const [editing, setEditing] = useState<EditingResume | null>(null);
+  useEffect(() => setEditing(getEditingResume()), []);
+  // While editing an account resume the button always replaces it, so "already saved" never locks it.
+  const saved = savedSignature === signature && !editing;
 
   // Both actions need a Job4online account. The check runs on every click so a visitor who just signed in in another tab can carry on
   // without reloading. Returns the access token, or null after showing the sign-up prompt.
@@ -114,6 +120,14 @@ export const ResumeControlBar = ({
     if (!token) return;
     setSaving(true);
     try {
+      if (editing) {
+        await replaceResumeInAccount(pdfUrl, editing.id, token);
+        writeSaved(signature);
+        clearEditingResume();
+        // Back to the resumes list, where the edited resume now is.
+        window.location.assign(`${DASHBOARD_URL}/resumes`);
+        return;
+      }
       await saveResumeToAccount(pdfUrl, fileName, token);
       writeSaved(signature);
       setSavedSignature(signature);
@@ -131,7 +145,9 @@ export const ResumeControlBar = ({
         className="flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 focus-visible:bg-gray-100 disabled:opacity-50"
         onClick={() => setConfirmingSave(true)}
         disabled={checking || saving || saved || !pdfUrl}
-        aria-label={saved ? "Saved to Job4online" : "Save to Job4online"}
+        aria-label={
+          editing ? "Replace saved resume" : saved ? "Saved to Job4online" : "Save to Job4online"
+        }
       >
         {saved ? (
           <CheckIcon className="h-4 w-4" aria-hidden="true" />
@@ -139,7 +155,13 @@ export const ResumeControlBar = ({
           <BookmarkIcon className="h-4 w-4" aria-hidden="true" />
         )}
         <span className="hidden whitespace-nowrap xl:inline" aria-live="polite">
-          {saving ? "Saving…" : saved ? "Saved to Job4online" : "Save to Job4online"}
+          {saving
+            ? "Saving…"
+            : editing
+              ? "Replace Saved Resume"
+              : saved
+                ? "Saved to Job4online"
+                : "Save to Job4online"}
         </span>
       </button>
       <button
@@ -183,6 +205,23 @@ export const ResumeControlBar = ({
           <span className="select-none">Autoscale</span>
         </label>
       </div>
+      {editing && (
+        <span className="flex min-w-0 items-center gap-2 text-sm text-gray-700">
+          <span className="truncate" title={editing.name}>
+            Editing &ldquo;{editing.name}&rdquo;
+          </span>
+          <button
+            type="button"
+            className="shrink-0 underline hover:text-gray-900"
+            onClick={() => {
+              clearEditingResume();
+              setEditing(null);
+            }}
+          >
+            Stop editing
+          </button>
+        </span>
+      )}
       {saveError && (
         <span className="text-sm text-red-600" role="alert">
           {saveError}
@@ -191,7 +230,7 @@ export const ResumeControlBar = ({
       {/* Save and Download render in the top nav bar. */}
       {navSlot && createPortal(actions, navSlot)}
       {confirmingSave && !saved && (
-        <SaveToJob4onlineModal saving={false} onConfirm={handleSave} onClose={() => setConfirmingSave(false)} />
+        <SaveToJob4onlineModal saving={false} replacing={editing?.name} onConfirm={handleSave} onClose={() => setConfirmingSave(false)} />
       )}
       {gateAction && (
         <SignUpToDownloadModal

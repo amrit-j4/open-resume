@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { ArrowUpTrayIcon, DocumentTextIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { getAccessToken } from "lib/auth-gate";
 import { cx } from "lib/cx";
-import { deepClone } from "lib/deep-clone";
+import { clearEditingResume } from "lib/editing-resume";
 import { getHasUsedAppBefore, saveStateToLocalStorage } from "lib/redux/local-storage";
 import type { Resume } from "lib/redux/types";
-import { initialSettings, type ShowForm } from "lib/redux/settingsSlice";
+import { builderStateFromImportedResume } from "lib/resume-import/to-builder-state";
 import { SIGN_IN_URL, SIGN_UP_URL, SITE_NAME } from "lib/site-config";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -76,21 +76,9 @@ export default function ImportResumePage() {
         throw new Error(data?.error ?? "We couldn't read this file. Try another one.");
       }
 
-      const { resume } = data;
-      const settings = deepClone(initialSettings);
-      const sectionHasContent: Record<ShowForm, boolean> = {
-        workExperiences: resume.workExperiences.length > 0,
-        educations: resume.educations.length > 0,
-        projects: resume.projects.length > 0,
-        skills:
-          resume.skills.featuredSkills.length > 0 || resume.skills.descriptions.length > 0,
-        custom: resume.custom.descriptions.length > 0,
-      };
-      for (const section of Object.keys(settings.formToShow) as ShowForm[]) {
-        settings.formToShow[section] = sectionHasContent[section];
-      }
-
-      saveStateToLocalStorage({ resume, settings });
+      saveStateToLocalStorage(builderStateFromImportedResume(data.resume));
+      // A fresh import is a new resume, not an edit of one in the account.
+      clearEditingResume();
       router.push("/resume-builder");
     } catch (err) {
       setStatus("idle");

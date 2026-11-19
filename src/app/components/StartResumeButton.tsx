@@ -9,6 +9,7 @@ import { getSampleResume, getSampleSettings } from "lib/sample-resume";
 import { initialResumeState } from "lib/redux/resumeSlice";
 import { initialSettings } from "lib/redux/settingsSlice";
 import { deepClone } from "lib/deep-clone";
+import { clearEditingResume } from "lib/editing-resume";
 import { ConfirmModal } from "components/ConfirmModal";
 import { applyProfilePrefill, fetchProfilePrefill } from "lib/profile-prefill";
 
@@ -47,6 +48,8 @@ export const StartResumeButton = ({
               settings: deepClone(initialSettings),
             };
       saveStateToLocalStorage(state);
+      // A sample or blank resume is not the account resume being edited.
+      clearEditingResume();
       router.push("/resume-builder");
     } finally {
       setStarting(false);
