@@ -8,7 +8,10 @@ import { API_URL } from "lib/site-config";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const fail = (message: string, status: number) => NextResponse.json({ error: message }, { status });
+// Never answer 502/504 from here: Cloudflare, which fronts this app, replaces an origin's 502/504 with its own "Bad gateway" page, so the person
+// (and the browser's network tab) would never see our message or know which step failed. A failure of something we call is a 500 instead.
+const fail = (message: string, status: number) =>
+  NextResponse.json({ error: message }, { status: status === 502 || status === 504 ? 500 : status });
 
 type ListedResume = { id: string; name: string; url: string; contentType: string | null; source: string };
 
