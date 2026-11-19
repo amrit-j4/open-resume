@@ -33,7 +33,8 @@ export async function POST(req: Request) {
   if (typeof id !== "string" || !id) return fail("Choose a resume to edit.", 400);
 
   let resume: ListedResume | undefined;
-  let file: File;
+  // A Blob, not a File: production runs Node 18, which has no global `File`, and the reader only needs the bytes and their size.
+  let file: Blob;
   try {
     const list = await fetch(`${API_URL}/seeker/resumes`, { headers: { Authorization: authorization }, cache: "no-store" });
     if (list.status === 401 || list.status === 403) return fail("Sign in to edit a resume.", 401);
@@ -51,11 +52,12 @@ export async function POST(req: Request) {
 
     const stored = await fetch(url, { cache: "no-store" });
     if (!stored.ok) return fail("We couldn't open that resume. Please try again.", 502);
-    const blob = await stored.blob();
-    if (blob.size > MAX_RESUME_FILE_BYTES) return fail("This file is too large to edit. The limit is 5 MB.", 413);
-    file = new File([blob], resume.name, { type: resume.contentType ?? blob.type });
-  } catch {
-    return fail("We couldn't reach the server. Please try again.", 502);
+    file = await stored.blob();
+    if (file.size > MAX_RESUME_FILE_BYTES) return fail("This file is too large to edit. The limit is 5 MB.", 413);
+  } catch (error) {
+    // Logged so a failure here can be found in the server log instead of only showing the person a generic message.
+    console.error("Could not load the resume to edit", error);
+    return fail("We couldn't open that resume. Please try again.", 502);
   }
 
   const usage = startUsage(caller, "import");

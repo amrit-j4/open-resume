@@ -16,7 +16,7 @@ const isDocx = (bytes: Buffer) => bytes[0] === 0x50 && bytes[1] === 0x4b;
  * Throws `AiRequestError` with a message that is safe to show: 413 too large, 415 wrong type, 422 unreadable, plus whatever the model
  * call throws.
  */
-export const readResumeFile = async (file: File): Promise<Resume> => {
+export const readResumeFile = async (file: Blob): Promise<Resume> => {
   if (file.size > MAX_RESUME_FILE_BYTES) {
     throw new AiRequestError("This file is too large. The limit is 5 MB.", 413);
   }
